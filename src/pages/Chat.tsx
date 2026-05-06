@@ -1,12 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { db } from '@/db/schema'
 import { chat } from '@/lib/anthropic'
-
-const SYSTEM = `너는 사용자의 사적인 일기 에이전트야.
-사용자가 중요한 사람들에 대해 적은 내용을 기억하고, 조언이 필요할 때 그 사람의 맥락을 고려해서 답해.
-일반론은 금지. 그 사람 specific한 조언만 해. 정보가 부족하면 솔직히 모른다고 답해.
-
-응답은 한국어로, 친근한 반말로. 길게 늘어놓지 말고 핵심만 간결하게.`
+import { buildSystemPrompt } from '@/lib/context'
 
 interface UIMessage {
   role: 'user' | 'assistant'
@@ -42,7 +37,8 @@ export function Chat() {
         content: userMsg,
         createdAt: Date.now(),
       })
-      const reply = await chat(userMsg, SYSTEM)
+      const system = await buildSystemPrompt()
+      const reply = await chat(userMsg, system)
       await db.messages.add({
         role: 'assistant',
         content: reply,
