@@ -41,3 +41,30 @@ export async function callJson(system: string, userMessage: string, maxTokens = 
   const block = res.content[0]
   return block.type === 'text' ? block.text : ''
 }
+
+/**
+ * Streaming 호출. delta가 도착할 때마다 onDelta 콜백 호출.
+ * 진행 상황 UI에 사용.
+ */
+export async function callJsonStreaming(
+  system: string,
+  userMessage: string,
+  maxTokens: number,
+  onDelta: (accumulated: string) => void,
+): Promise<string> {
+  const stream = getClient().messages.stream({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: maxTokens,
+    system,
+    messages: [{ role: 'user', content: userMessage }],
+  })
+
+  let accumulated = ''
+  stream.on('text', (delta) => {
+    accumulated += delta
+    onDelta(accumulated)
+  })
+
+  await stream.finalMessage()
+  return accumulated
+}

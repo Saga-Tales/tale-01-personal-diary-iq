@@ -1,6 +1,10 @@
 import { useState, useEffect } from 'react'
 import { db, type Person } from '@/db/schema'
-import { summarizeChat, type DigestOutput } from '@/lib/summarizer'
+import {
+  summarizeChat,
+  type DigestOutput,
+  type DigestProgress,
+} from '@/lib/summarizer'
 import { readKakaoFile } from '@/lib/kakao'
 import { FileDropZone } from '@/components/FileDropZone'
 
@@ -13,6 +17,7 @@ export function Digest() {
   const [people, setPeople] = useState<Person[]>([])
   const [focusPerson, setFocusPerson] = useState('')
   const [loading, setLoading] = useState(false)
+  const [progress, setProgress] = useState<DigestProgress | null>(null)
   const [result, setResult] = useState<DigestOutput | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -26,11 +31,13 @@ export function Digest() {
     setFocusPerson('')
     setResult(null)
     setError(null)
+    setProgress(null)
   }
 
   async function summarize() {
     setError(null)
     setResult(null)
+    setProgress(null)
 
     let chatText = ''
     if (mode === 'paste') {
@@ -55,12 +62,13 @@ export function Digest() {
 
     setLoading(true)
     try {
-      const r = await summarizeChat(chatText, focusPerson || undefined)
+      const r = await summarizeChat(chatText, focusPerson || undefined, setProgress)
       setResult(r)
     } catch (e) {
       setError(e instanceof Error ? e.message : '요약 실패')
     } finally {
       setLoading(false)
+      setProgress(null)
     }
   }
 
@@ -74,23 +82,100 @@ export function Digest() {
       </header>
 
       {!result ? (
-        <InputCard
-          mode={mode}
-          setMode={setMode}
-          text={text}
-          setText={setText}
-          file={file}
-          setFile={setFile}
-          people={people}
-          focusPerson={focusPerson}
-          setFocusPerson={setFocusPerson}
-          loading={loading}
-          error={error}
-          onSubmit={summarize}
-        />
+        progress ? (
+          <ProgressDisplay progress={progress} />
+        ) : (
+          <InputCard
+            mode={mode}
+            setMode={setMode}
+            text={text}
+            setText={setText}
+            file={file}
+            setFile={setFile}
+            people={people}
+            focusPerson={focusPerson}
+            setFocusPerson={setFocusPerson}
+            loading={loading}
+            error={error}
+            onSubmit={summarize}
+          />
+        )
       ) : (
         <DigestResult result={result} onReset={reset} />
       )}
+    </div>
+  )
+}
+
+function ProgressDisplay({ progress }: { progress: DigestProgress }) {
+  const elapsed = (progress.elapsedMs / 1000).toFixed(1)
+  // 예상 토큰 = 800자 정도 (응답 평균). 그 이상이면 100%로 cap
+  const pct = Math.min((progress.receivedChars / 800) * 100, 99)
+
+  return (
+    <section className="border border-[var(--color-line)] bg-white rounded-xl p-6 shadow-sm space-y-5">
+      <div className="flex items-center gap-3">
+        <Spinner />
+        <div>
+          <div className="text-sm font-medium">
+            {progress.phase === 'connecting' && 'Claude API 연결 중...'}
+            {progress.phase === 'streaming' && '분석 중...'}
+            {progress.phase === 'parsing' && '결과 정리 중...'}
+          </div>
+          <div className="text-xs text-[var(--color-ink-soft)] tabular-nums">
+            {elapsed}초 경과
+            {progress.phase === 'streaming' && ` · ${progress.receivedChars.toLocaleString()}자 받음`}
+          </div>
+        </div>
+      </div>
+
+      {/* 진행 바 (streaming 중에만) */}
+      {progress.phase === 'streaming' && (
+        <div className="w-full h-1 bg-[var(--color-line)] rounded-full overflow-hidden">
+          <div
+            className="h-full bg-[var(--color-ink)] transition-all duration-300"
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+      )}
+
+      {/* 발견된 화제 (실시간 추출) */}
+      {progress.topicsFound.length > 0 && (
+        <div className="space-y-2">
+          <div className="text-xs uppercase tracking-wide text-[var(--color-ink-soft)]">
+            발견된 화제
+          </div>
+          <ul className="space-y-1.5">
+            {progress.topicsFound.map((title, i) => (
+              <li
+                key={i}
+                className="text-sm flex items-start gap-2 animate-in fade-in slide-in-from-left-1"
+              >
+                <span className="text-[var(--color-ink)] font-medium">✓</span>
+                <span>{title}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {progress.phase === 'streaming' && progress.topicsFound.length === 0 && progress.elapsedMs > 3000 && (
+        <p className="text-xs text-[var(--color-ink-soft)] italic">
+          첫 결과가 나오기까지 잠시만 기다려주세요...
+        </p>
+      )}
+    </section>
+  )
+}
+
+function Spinner() {
+  return (
+    <div className="relative w-5 h-5">
+      <div className="absolute inset-0 border-2 border-[var(--color-line)] rounded-full" />
+      <div
+        className="absolute inset-0 border-2 border-[var(--color-ink)] border-t-transparent rounded-full animate-spin"
+        style={{ animationDuration: '0.8s' }}
+      />
     </div>
   )
 }
