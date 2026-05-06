@@ -265,14 +265,28 @@ src/
 ├── components/
 │   ├── ApiKeyGate.tsx       # API 키 없으면 /settings 리다이렉트
 │   ├── ErrorBoundary.tsx    # 에러 시 빈 화면 대신 진단 표시
-│   └── FileDropZone.tsx     # 재사용 파일 업로드 (드래그+클릭)
+│   ├── FileDropZone.tsx     # 재사용 파일 업로드 (드래그+클릭)
+│   ├── InstallHint.tsx      # PWA 설치 안내 (iOS/Android/desktop 분기)
+│   └── digest.tsx           # 공유 다이제스트 UI (ProgressDisplay, DigestResult)
 │
 └── pages/
-    ├── Chat.tsx             # 채팅 + 임베딩 preload + toast
+    ├── Home.tsx             # 홈 대시보드 — 카운터, 기념일, 최근 facts, 주간 다이제스트
+    ├── Chat.tsx             # 채팅 + streaming + 임베딩 preload + toast
     ├── People.tsx           # Person CRUD + facts 표시 + 개별 삭제
     ├── Digest.tsx           # 긴 대화 요약 (paste/file → 구조화된 결과)
-    ├── Settings.tsx         # API 키 입력 / 삭제
+    ├── Settings.tsx         # API 키 입력 / 삭제 + PWA 설치 안내
     └── Data.tsx             # 기념일 + 백업 + 카톡 import (3 카드)
+
+public/
+├── manifest.webmanifest     # PWA 메타데이터
+├── sw.js                    # Service worker (stale-while-revalidate)
+├── icon-192.png             # PWA 아이콘 (192×192)
+├── icon-512.png             # PWA 아이콘 (512×512)
+├── icon-maskable-512.png    # Android adaptive 아이콘
+└── apple-touch-icon.png     # iOS 홈 화면 아이콘
+
+scripts/
+└── generate-icons.py        # PIL로 아이콘 PNG 생성 (paper bg + italic 'd')
 ```
 
 ---
@@ -286,14 +300,15 @@ src/
 - ✅ **Day 3**: Episode embedding (multilingual-e5-small) + RAG retrieval + ErrorBoundary
 - ✅ **Day 4**: 기념일 .ics + 암호화 백업/복원 + 카톡 .txt/.eml import + UX 다듬기
 - ✅ **Day 5**: 다이제스트 — 긴 대화에서 핵심 추출 (주요 화제, 결정, 액션 아이템, 인용, 분위기, 참여자별 요약)
+- ✅ **Day 6**: 채팅 streaming — 토큰별 즉시 표시 + 다이제스트도 streaming + 진행 상황 시각화
+- ✅ **Day 7**: 홈 대시보드 — 카운터, 다가오는 기념일, 최근 추출된 facts, 이번 주 다이제스트 한 자리에서
+- ✅ **Day 8**: PWA — manifest + service worker + 홈 화면 추가, 오프라인 기본 동작
 
-**검토 중 (Day 6+)**
+**검토 중 (Day 9+)**
 
 - Person 상세 페이지 (한 사람의 모든 episode 타임라인)
-- Streaming 응답 (대화 즉시 반응성 향상)
 - 검색 (전체 메시지·일화 키워드/의미 검색)
 - 온보딩 플로우 (첫 사용자 가이드)
-- PWA (홈 화면 추가, 오프라인 사용)
 - 음성 입력 (감정 토로용)
 - 다이제스트를 episode로 저장 (요약된 메모리)
 - 로컬 LLM 옵션 (전체 오프라인, 채팅까지 로컬)
@@ -319,6 +334,8 @@ Promotion ceremony 후보로 제출 예정.
 3. **로컬 임베딩은 진짜 가능하다.** transformers.js + 양자화 모델이면 충분히 production-grade. 비용 제로, 프라이버시 자동 해결.
 4. **Fire-and-forget이 UX의 핵심.** AI 기능은 종종 느리다 (수 초~수 분). 사용자를 기다리게 하지 않는 비동기 구조가 결정적.
 5. **BYOK는 architecture로 봐야 한다.** 단순 "사용자 키 입력 받기" 기능이 아니라, 백엔드 부재의 자연스러운 귀결로서 설계되어야 신뢰가 작동.
+6. **Streaming은 "기다림"을 "관찰"로 바꾼다.** API 응답이 같은 5초여도, 토큰이 즉시 보이기 시작하면 체감 속도가 완전히 다르다. 부분 JSON에서 정규식으로 부분 결과 뽑아 보여주는 패턴은 일반화 가능.
+7. **PWA는 vite-plugin-pwa 없이도 가능.** manifest.webmanifest + sw.js + main.tsx에서 register — 100줄 미만으로 끝남. 의존성 추가 + 빌드 복잡도 트레이드오프 안 해도 됨.
 
 ---
 

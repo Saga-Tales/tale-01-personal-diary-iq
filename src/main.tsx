@@ -14,3 +14,18 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     </ErrorBoundary>
   </React.StrictMode>,
 )
+
+// Service worker 등록 (PWA — 오프라인 사용 + 홈 화면 추가)
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    const swPath = `${import.meta.env.BASE_URL}sw.js`
+    navigator.serviceWorker
+      .register(swPath)
+      .then((reg) => {
+        console.log('[sw] 등록됨, scope:', reg.scope)
+      })
+      .catch((err) => {
+        console.warn('[sw] 등록 실패:', err)
+      })
+  })
+}

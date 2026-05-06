@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getApiKey, setApiKey, clearApiKey } from '@/lib/anthropic'
+import { InstallHint } from '@/components/InstallHint'
 
 export function Settings() {
   const [apiKey, setKey] = useState('')
@@ -15,7 +16,7 @@ export function Settings() {
     if (!apiKey.trim()) return
     setApiKey(apiKey.trim())
     setSaved(true)
-    setTimeout(() => navigate('/chat'), 600)
+    setTimeout(() => navigate('/'), 600)
   }
 
   function clear() {
@@ -25,13 +26,16 @@ export function Settings() {
   }
 
   return (
-    <div className="max-w-xl mx-auto p-8">
-      <h1 className="text-3xl mb-2">설정</h1>
-      <p className="text-[var(--color-ink-soft)] mb-8 italic">
-        너의 키, 너의 데이터, 너의 일기.
-      </p>
+    <div className="max-w-xl mx-auto p-8 space-y-8">
+      <header>
+        <h1 className="text-3xl mb-2">설정</h1>
+        <p className="text-[var(--color-ink-soft)] italic">
+          너의 키, 너의 데이터, 너의 일기.
+        </p>
+      </header>
 
-      <div className="space-y-6">
+      {/* API Key */}
+      <section className="space-y-4">
         <div>
           <label className="block text-sm font-medium mb-2">
             Anthropic API 키
@@ -64,7 +68,10 @@ export function Settings() {
             지우기
           </button>
         </div>
-      </div>
+      </section>
+
+      {/* PWA install */}
+      <InstallHint />
     </div>
   )
 }
