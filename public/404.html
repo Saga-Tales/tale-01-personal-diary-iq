@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <title>diary</title>
+    <script>
+      // GitHub Pages SPA fallback (https://github.com/rafgraph/spa-github-pages)
+      // /tale-01-personal-diary-iq/chat (404) → /tale-01-personal-diary-iq/?/chat (200, index.html)
+      // 이후 index.html의 restoration script가 URL을 /chat 으로 정상화함
+      (function (l) {
+        var pathSegmentsToKeep = 1;  // 'tale-01-personal-diary-iq' 1개 segment 유지
+        l.replace(
+          l.protocol + '//' + l.hostname + (l.port ? ':' + l.port : '') +
+          l.pathname.split('/').slice(0, 1 + pathSegmentsToKeep).join('/') + '/?/' +
+          l.pathname.slice(1).split('/').slice(pathSegmentsToKeep).join('/').replace(/&/g, '~and~') +
+          (l.search ? '&' + l.search.slice(1).replace(/&/g, '~and~') : '') +
+          l.hash
+        );
+      }(window.location));
+    </script>
+  </head>
+  <body></body>
+</html>

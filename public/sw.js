@@ -2,7 +2,7 @@
 // 전략: stale-while-revalidate (cache 있으면 즉시 반환 + 백그라운드 갱신)
 // 예외: api.anthropic.com 호출은 절대 캐시하지 않음 (인증 + 동적 응답)
 
-const VERSION = 'v1'
+const VERSION = 'v2'
 const CACHE = `diary-${VERSION}`
 
 // 설치 시 핵심 path만 우선 캐시 (오프라인 첫 진입 시 셸 생존)
@@ -40,6 +40,28 @@ self.addEventListener('fetch', (event) => {
   // chrome-extension:// 같은 비표준 scheme도 무시
   if (!url.protocol.startsWith('http')) return
 
+  // Navigation 요청 (HTML 페이지) → 항상 캐시된 shell 반환 (SPA)
+  // 이렇게 하면 /chat 같은 URL로 새로고침해도 GitHub Pages 404 우회
+  // SW가 이미 등록된 사용자한테는 404.html redirect 라운드트립이 안 일어남
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      caches.open(CACHE).then(async (cache) => {
+        const cached = await cache.match('./')
+        if (cached) return cached
+        // 캐시 miss (첫 방문 or 캐시 비어있을 때) → 네트워크 폴백
+        try {
+          const fresh = await fetch('./')
+          if (fresh.ok) cache.put('./', fresh.clone())
+          return fresh
+        } catch {
+          return Response.error()
+        }
+      }),
+    )
+    return
+  }
+
+  // 그 외 GET 요청 → stale-while-revalidate
   event.respondWith(
     caches.open(CACHE).then(async (cache) => {
       const cached = await cache.match(event.request)

@@ -2,6 +2,20 @@
 <html lang="ko">
   <head>
     <meta charset="UTF-8" />
+    <script>
+      // SPA fallback restoration — 404.html에서 redirect된 ?/path를 실제 path로 복원
+      // React Router가 부팅하기 전에 동기 실행되어야 함 (head 안 inline script)
+      (function (l) {
+        if (l.search[1] === '/') {
+          var decoded = l.search.slice(1).split('&').map(function (s) {
+            return s.replace(/~and~/g, '&');
+          }).join('?');
+          window.history.replaceState(null, null,
+            l.pathname.slice(0, -1) + decoded + l.hash
+          );
+        }
+      }(window.location));
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#faf8f3" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
