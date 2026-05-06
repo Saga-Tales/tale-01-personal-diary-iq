@@ -12,6 +12,7 @@ import {
   groupByDay,
   importChunks,
   readKakaoFile,
+  getDebugSample,
   type DailyChunk,
   type ImportProgress,
 } from '@/lib/kakao'
@@ -315,6 +316,7 @@ function KakaoImportCard() {
     failed: number
   } | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [debugSample, setDebugSample] = useState<string | null>(null)
   const [analyzing, setAnalyzing] = useState(false)
 
   useEffect(() => {
@@ -327,6 +329,7 @@ function KakaoImportCard() {
     setProgress(null)
     setResult(null)
     setError(null)
+    setDebugSample(null)
   }
 
   function handleFile(f: File | null) {
@@ -334,19 +337,22 @@ function KakaoImportCard() {
     setChunks(null)
     setError(null)
     setResult(null)
+    setDebugSample(null)
   }
 
   async function previewFile() {
     if (!file) return
     setError(null)
+    setDebugSample(null)
     setAnalyzing(true)
     try {
       const text = await readKakaoFile(file)
       const messages = parseKakaoExport(text)
       if (messages.length === 0) {
         setError(
-          '메시지를 추출하지 못했어요. 카카오톡 모바일/PC 대화 내보내기 형식이 맞나요?',
+          '메시지를 추출하지 못했어요. 아래 미리보기로 파일 형식 확인 후 IQ에게 공유해주세요.',
         )
+        setDebugSample(getDebugSample(text, 30))
         return
       }
       setChunks(groupByDay(messages))
@@ -467,6 +473,30 @@ function KakaoImportCard() {
           )}
 
           {error && <StatusMessage type="err" text={error} />}
+
+          {debugSample && (
+            <div className="border border-[var(--color-line)] rounded-lg p-3 bg-[var(--color-paper)]">
+              <div className="text-xs uppercase tracking-wide text-[var(--color-ink-soft)] mb-2">
+                파일에서 추출된 내용 (처음 30줄)
+              </div>
+              <pre className="text-xs font-mono whitespace-pre-wrap break-all max-h-64 overflow-auto bg-white border border-[var(--color-line)] rounded p-2">
+                {debugSample}
+              </pre>
+              <p className="text-xs text-[var(--color-ink-soft)] mt-2 leading-relaxed">
+                이 내용을 복사해서 IQ에게 공유하면 정확한 파서를 만들 수 있어요.
+                (개인정보는 가려도 됨, 형식만 알면 충분)
+              </p>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(debugSample)
+                  alert('클립보드에 복사됨')
+                }}
+                className="btn-secondary w-full mt-2"
+              >
+                클립보드에 복사
+              </button>
+            </div>
+          )}
         </div>
       )}
 

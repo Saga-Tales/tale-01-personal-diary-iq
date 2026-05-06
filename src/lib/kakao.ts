@@ -83,69 +83,154 @@ function looksLikeKakao(text: string): boolean {
 }
 
 /**
- * 카카오톡 모바일 export 형식 파싱.
- * 형식 예:
- *   --------------- 2026년 5월 1일 일요일 ---------------
- *   [티뉴] [오후 3:42] 야 오늘 떡볶이 어때
- *   [IQ] [오후 3:43] ㅇㅋ
- *
- * PC 버전 ([오후 3:42] 이름 : msg) 도 호환.
+ * 카카오톡 export 다양한 형식을 모두 시도해서 파싱.
+ * 지원:
+ *   - 모바일: [이름] [오후 H:MM] 메시지
+ *   - PC: [오후 H:MM] 이름 : 메시지
+ *   - PC long: 2026년 5월 1일 오후 3:42, 이름 : 메시지
+ *   - PC dot: 2026. 5. 1. 오후 3:42 - 이름 : 메시지
+ *   - 24-hour 변형도 함께
+ * 날짜 헤더는 dashes 있어도/없어도 매칭. 날짜를 못 찾아도 메시지에서 inline 추출되면 사용.
  */
 export function parseKakaoExport(text: string): ParsedMessage[] {
   const lines = text.split('\n')
   const messages: ParsedMessage[] = []
   let currentDate = ''
 
-  // "--------------- 2026년 5월 1일 일요일 ---------------"
-  const dateHeader = /-+\s*(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일/
-
-  // 모바일: "[이름] [오후 3:42] 메시지"
-  const mobilePattern = /^\[([^\]]+)\]\s*\[(오전|오후)\s*(\d{1,2}):(\d{2})\]\s*(.*)$/
-
-  // PC: "[오후 3:42] 이름 : 메시지"
-  const pcPattern = /^\[(오전|오후)\s*(\d{1,2}):(\d{2})\]\s*([^:]+):\s*(.*)$/
+  // 날짜 헤더 패턴들 — 모두 line 끝까지 단독 형태일 때만 매칭 (메시지 라인이 잘못 매칭되지 않게)
+  const dateHeaderPatterns = [
+    // 대시로 둘러싸인: --------------- 2026년 5월 1일 일요일 ---------------
+    /^-+\s*(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일[^:]*-+\s*$/,
+    // 단독: "2026년 5월 1일" 또는 "2026년 5월 1일 일요일"
+    /^(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일\s*(?:[가-힣]+요일)?\s*$/,
+    // 점: 2026.5.1
+    /^(\d{4})\.\s*(\d{1,2})\.\s*(\d{1,2})\.?\s*$/,
+    // 하이픈: 2026-05-01
+    /^(\d{4})-(\d{1,2})-(\d{1,2})\s*$/,
+  ]
 
   for (const rawLine of lines) {
-    const line = rawLine.trimEnd()
+    const line = rawLine.trim()
+    if (!line) continue
 
-    const dateMatch = line.match(dateHeader)
-    if (dateMatch) {
-      const [, y, m, d] = dateMatch
-      currentDate = `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`
+    // 1) 메시지 라인 먼저 시도 (가장 구체적인 패턴)
+    const parsed = tryParseMessageLine(line)
+    if (parsed) {
+      if (parsed.date) currentDate = parsed.date
+      messages.push({
+        date: parsed.date || currentDate || '1970-01-01',
+        time: parsed.time,
+        sender: parsed.sender,
+        content: parsed.content,
+      })
       continue
     }
 
-    if (!currentDate) continue
-
-    const mobile = line.match(mobilePattern)
-    const pc = line.match(pcPattern)
-    const match = mobile || pc
-
-    if (match) {
-      let sender: string, ampm: string, hourStr: string, min: string, content: string
-      if (mobile) {
-        ;[, sender, ampm, hourStr, min, content] = mobile
-      } else {
-        ;[, ampm, hourStr, min, sender, content] = pc!
+    // 2) 메시지가 아니면 날짜 헤더 시도 (단독 라인만)
+    let dateMatched = false
+    for (const pat of dateHeaderPatterns) {
+      const m = line.match(pat)
+      if (m) {
+        const [, y, mo, d] = m
+        currentDate = `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+        dateMatched = true
+        break
       }
+    }
+    if (dateMatched) continue
 
-      let hour = parseInt(hourStr, 10)
-      if (ampm === '오후' && hour !== 12) hour += 12
-      if (ampm === '오전' && hour === 12) hour = 0
+    // 3) 날짜로 시작하지만 메시지/헤더 둘 다 아닌 라인 → 시스템 메시지/마커. 무시
+    //    예: "2026년 4월 17일 오전 9:18" (단독 timestamp)
+    //    예: "2026년 4월 17일 오전 9:18, 한동희님이 X님을 초대했습니다" (sender:msg 구분자 없음)
+    if (/^\d{4}년\s*\d{1,2}월\s*\d{1,2}일/.test(line)) continue
 
-      messages.push({
-        date: currentDate,
-        time: `${String(hour).padStart(2, '0')}:${min}`,
-        sender: sender.trim(),
-        content: content.trim(),
-      })
-    } else if (line.trim() && messages.length > 0) {
-      // multi-line continuation: 이전 메시지에 이어붙임
-      messages[messages.length - 1].content += '\n' + line.trim()
+    // 4) 그 외 라인은 이전 메시지의 continuation으로 간주
+    if (messages.length > 0) {
+      messages[messages.length - 1].content += '\n' + line
     }
   }
 
   return messages
+}
+
+interface ParseAttempt {
+  date?: string
+  time: string
+  sender: string
+  content: string
+}
+
+function tryParseMessageLine(line: string): ParseAttempt | null {
+  // (A) 모바일: [이름] [오후 3:42] 메시지
+  let m = line.match(/^\[([^\]]+)\]\s*\[(오전|오후)\s*(\d{1,2}):(\d{2})\]\s*(.*)$/)
+  if (m) {
+    const [, sender, ampm, h, mi, content] = m
+    return { time: to24h(ampm, h, mi), sender: sender.trim(), content: content.trim() }
+  }
+
+  // (B) 모바일 24h: [이름] [13:42] 메시지
+  m = line.match(/^\[([^\]]+)\]\s*\[(\d{1,2}):(\d{2})\]\s*(.*)$/)
+  if (m) {
+    const [, sender, h, mi, content] = m
+    return { time: `${h.padStart(2, '0')}:${mi}`, sender: sender.trim(), content: content.trim() }
+  }
+
+  // (C) PC: [오후 3:42] 이름 : 메시지
+  m = line.match(/^\[(오전|오후)\s*(\d{1,2}):(\d{2})\]\s*([^:]+?)\s*:\s*(.*)$/)
+  if (m) {
+    const [, ampm, h, mi, sender, content] = m
+    return { time: to24h(ampm, h, mi), sender: sender.trim(), content: content.trim() }
+  }
+
+  // (D) PC long: 2026년 5월 1일 오후 3:42, 이름 : 메시지
+  m = line.match(
+    /^(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일\s*(오전|오후)\s*(\d{1,2}):(\d{2})\s*[,-]\s*([^:]+?)\s*:\s*(.*)$/,
+  )
+  if (m) {
+    const [, y, mo, d, ampm, h, mi, sender, content] = m
+    return {
+      date: `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`,
+      time: to24h(ampm, h, mi),
+      sender: sender.trim(),
+      content: content.trim(),
+    }
+  }
+
+  // (E) PC dot: 2026. 5. 1. 오후 3:42 - 이름 : 메시지
+  m = line.match(
+    /^(\d{4})\.\s*(\d{1,2})\.\s*(\d{1,2})\.?\s*(오전|오후)\s*(\d{1,2}):(\d{2})\s*[,-]\s*([^:]+?)\s*:\s*(.*)$/,
+  )
+  if (m) {
+    const [, y, mo, d, ampm, h, mi, sender, content] = m
+    return {
+      date: `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`,
+      time: to24h(ampm, h, mi),
+      sender: sender.trim(),
+      content: content.trim(),
+    }
+  }
+
+  return null
+}
+
+function to24h(ampm: string, hourStr: string, min: string): string {
+  let hour = parseInt(hourStr, 10)
+  if (ampm === '오후' && hour !== 12) hour += 12
+  if (ampm === '오전' && hour === 12) hour = 0
+  return `${String(hour).padStart(2, '0')}:${min}`
+}
+
+/**
+ * 디버깅용: 파일에서 추출된 텍스트의 의미있는 첫 N줄.
+ * 파싱 실패 시 사용자에게 보여줘서 어떤 형식인지 확인 가능하게.
+ */
+export function getDebugSample(text: string, maxLines = 30): string {
+  return text
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0)
+    .slice(0, maxLines)
+    .join('\n')
 }
 
 export function groupByDay(messages: ParsedMessage[]): DailyChunk[] {

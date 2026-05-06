@@ -22,15 +22,17 @@ export default function App() {
 
 function Nav() {
   const linkClass = ({ isActive }: { isActive: boolean }) =>
-    `px-4 py-3 text-sm transition-colors ${
+    `px-4 sm:px-5 py-3 text-sm transition-colors ${
       isActive
         ? 'text-[var(--color-ink)] font-medium'
         : 'text-[var(--color-ink-soft)] hover:text-[var(--color-ink)]'
     }`
 
   return (
-    <nav className="border-b border-[var(--color-line)] flex items-center px-2">
-      <div className="font-display text-lg px-3 italic">diary</div>
+    <nav className="border-b border-[var(--color-line)] flex items-center pl-5 sm:pl-7 pr-2">
+      <h1 className="font-display text-2xl italic py-3 select-none">
+        diary
+      </h1>
       <div className="flex-1" />
       <NavLink to="/chat" className={linkClass}>대화</NavLink>
       <NavLink to="/people" className={linkClass}>사람들</NavLink>
