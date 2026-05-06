@@ -4,6 +4,7 @@ import { Settings } from '@/pages/Settings'
 import { People } from '@/pages/People'
 import { Chat } from '@/pages/Chat'
 import { Data } from '@/pages/Data'
+import { Digest } from '@/pages/Digest'
 
 export default function App() {
   return (
@@ -14,6 +15,7 @@ export default function App() {
         <Route path="/settings" element={<Settings />} />
         <Route path="/people" element={<ApiKeyGate><People /></ApiKeyGate>} />
         <Route path="/chat" element={<ApiKeyGate><Chat /></ApiKeyGate>} />
+        <Route path="/digest" element={<ApiKeyGate><Digest /></ApiKeyGate>} />
         <Route path="/data" element={<ApiKeyGate><Data /></ApiKeyGate>} />
       </Routes>
     </div>
@@ -22,7 +24,7 @@ export default function App() {
 
 function Nav() {
   const linkClass = ({ isActive }: { isActive: boolean }) =>
-    `px-4 sm:px-5 py-3 text-sm transition-colors ${
+    `px-3 sm:px-4 py-3 text-sm transition-colors ${
       isActive
         ? 'text-[var(--color-ink)] font-medium'
         : 'text-[var(--color-ink-soft)] hover:text-[var(--color-ink)]'
@@ -36,6 +38,7 @@ function Nav() {
       <div className="flex-1" />
       <NavLink to="/chat" className={linkClass}>대화</NavLink>
       <NavLink to="/people" className={linkClass}>사람들</NavLink>
+      <NavLink to="/digest" className={linkClass}>다이제스트</NavLink>
       <NavLink to="/data" className={linkClass}>데이터</NavLink>
       <NavLink to="/settings" className={linkClass}>설정</NavLink>
     </nav>

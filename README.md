@@ -257,6 +257,7 @@ src/
 │   ├── validator.ts         # Hard-constraint 검증 (iq-blogger pattern)
 │   ├── embedder.ts          # transformers.js 싱글톤 (dynamic import)
 │   ├── retriever.ts         # Cosine similarity 검색 + episode 저장
+│   ├── summarizer.ts        # 다이제스트: 긴 대화 → 구조화된 요약
 │   ├── ical.ts              # 생일 .ics 생성
 │   ├── backup.ts            # PBKDF2 + AES-GCM 암호화 백업
 │   └── kakao.ts             # 카톡 .txt/.eml 파서 + bulk import
@@ -269,6 +270,7 @@ src/
 └── pages/
     ├── Chat.tsx             # 채팅 + 임베딩 preload + toast
     ├── People.tsx           # Person CRUD + facts 표시 + 개별 삭제
+    ├── Digest.tsx           # 긴 대화 요약 (paste/file → 구조화된 결과)
     ├── Settings.tsx         # API 키 입력 / 삭제
     └── Data.tsx             # 기념일 + 백업 + 카톡 import (3 카드)
 ```
@@ -283,8 +285,9 @@ src/
 - ✅ **Day 2**: System prompt에 사람 정보 주입 + Fact extraction + Hard-constraint validator
 - ✅ **Day 3**: Episode embedding (multilingual-e5-small) + RAG retrieval + ErrorBoundary
 - ✅ **Day 4**: 기념일 .ics + 암호화 백업/복원 + 카톡 .txt/.eml import + UX 다듬기
+- ✅ **Day 5**: 다이제스트 — 긴 대화에서 핵심 추출 (주요 화제, 결정, 액션 아이템, 인용, 분위기, 참여자별 요약)
 
-**검토 중 (Day 5+)**
+**검토 중 (Day 6+)**
 
 - Person 상세 페이지 (한 사람의 모든 episode 타임라인)
 - Streaming 응답 (대화 즉시 반응성 향상)
@@ -292,7 +295,7 @@ src/
 - 온보딩 플로우 (첫 사용자 가이드)
 - PWA (홈 화면 추가, 오프라인 사용)
 - 음성 입력 (감정 토로용)
-- 다중 사람 import (단톡방의 여러 명 한 번에)
+- 다이제스트를 episode로 저장 (요약된 메모리)
 - 로컬 LLM 옵션 (전체 오프라인, 채팅까지 로컬)
 
 ---
