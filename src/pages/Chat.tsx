@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { db } from '@/db/schema'
-import { chat } from '@/lib/anthropic'
+import { callStreaming } from '@/lib/anthropic'
 import { buildSystemPrompt } from '@/lib/context'
 import { extractFromMessage } from '@/lib/extractor'
 import { preload, setProgressCallback, isEmbedderReady } from '@/lib/embedder'
@@ -41,8 +41,12 @@ export function Chat() {
     return () => setProgressCallback(null)
   }, [])
 
+  // 자동 스크롤 — streaming 중엔 instant, 새 메시지엔 smooth
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    bottomRef.current?.scrollIntoView({
+      behavior: loading ? 'auto' : 'smooth',
+      block: 'end',
+    })
   }, [messages, loading])
 
   useEffect(() => {
@@ -55,7 +59,13 @@ export function Chat() {
     const userMsg = input.trim()
     if (!userMsg || loading) return
     setInput('')
-    setMessages((m) => [...m, { role: 'user', content: userMsg }])
+
+    // user 메시지 + 비어있는 assistant placeholder를 atomic 하게 추가
+    setMessages((m) => [
+      ...m,
+      { role: 'user', content: userMsg },
+      { role: 'assistant', content: '' },
+    ])
     setLoading(true)
 
     try {
@@ -65,15 +75,26 @@ export function Chat() {
         createdAt: Date.now(),
       })
       const system = await buildSystemPrompt(userMsg)
-      const reply = await chat(userMsg, system)
+
+      // streaming — 매 chunk마다 마지막 메시지 (assistant placeholder) 갱신
+      let reply = ''
+      await callStreaming(system, userMsg, 1024, (accumulated) => {
+        reply = accumulated
+        setMessages((m) => {
+          const updated = [...m]
+          updated[updated.length - 1] = { role: 'assistant', content: accumulated }
+          return updated
+        })
+      })
+
+      // 스트림 종료 후 DB 저장 (token마다 쓰지 않음)
       await db.messages.add({
         role: 'assistant',
         content: reply,
         createdAt: Date.now(),
       })
-      setMessages((m) => [...m, { role: 'assistant', content: reply }])
 
-      // 백그라운드 작업들 (응답 표시 후 비동기)
+      // 백그라운드 작업들
       saveEpisode(userMsg, reply).catch((e) =>
         console.warn('[chat] episode 저장 실패:', e),
       )
@@ -91,7 +112,12 @@ export function Chat() {
         .catch((e) => console.warn('[extractor] 실패:', e))
     } catch (e) {
       const msg = e instanceof Error ? e.message : '알 수 없는 오류'
-      setMessages((m) => [...m, { role: 'assistant', content: `❌ ${msg}` }])
+      // 비어있는 assistant placeholder를 에러 메시지로 교체
+      setMessages((m) => {
+        const updated = [...m]
+        updated[updated.length - 1] = { role: 'assistant', content: `❌ ${msg}` }
+        return updated
+      })
     } finally {
       setLoading(false)
     }
@@ -130,26 +156,38 @@ export function Chat() {
             오늘 무슨 일 있었어?
           </p>
         )}
-        {messages.map((m, i) => (
-          <div key={i} className={m.role === 'user' ? 'flex justify-end' : 'flex justify-start'}>
+        {messages.map((m, i) => {
+          const isLast = i === messages.length - 1
+          const isStreaming = loading && isLast && m.role === 'assistant'
+          const showDots = isStreaming && !m.content
+          return (
             <div
-              className={`max-w-[85%] rounded-2xl px-4 py-2.5 leading-relaxed ${
-                m.role === 'user'
-                  ? 'bg-[var(--color-ink)] text-[var(--color-paper)]'
-                  : 'bg-white border border-[var(--color-line)]'
-              }`}
+              key={i}
+              className={m.role === 'user' ? 'flex justify-end' : 'flex justify-start'}
             >
-              {m.content}
+              <div
+                className={`max-w-[85%] rounded-2xl px-4 py-2.5 leading-relaxed whitespace-pre-wrap ${
+                  m.role === 'user'
+                    ? 'bg-[var(--color-ink)] text-[var(--color-paper)]'
+                    : 'bg-white border border-[var(--color-line)]'
+                }`}
+              >
+                {showDots ? (
+                  <span className="text-[var(--color-ink-soft)] inline-block animate-pulse">
+                    ···
+                  </span>
+                ) : (
+                  <>
+                    {m.content}
+                    {isStreaming && (
+                      <span className="inline-block w-1.5 h-4 bg-current align-text-bottom animate-pulse ml-0.5" />
+                    )}
+                  </>
+                )}
+              </div>
             </div>
-          </div>
-        ))}
-        {loading && (
-          <div className="flex justify-start">
-            <div className="bg-white border border-[var(--color-line)] rounded-2xl px-4 py-2.5 text-[var(--color-ink-soft)]">
-              <span className="inline-block animate-pulse">···</span>
-            </div>
-          </div>
-        )}
+          )
+        })}
         <div ref={bottomRef} />
       </div>
 

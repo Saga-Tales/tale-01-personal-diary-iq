@@ -1,4 +1,4 @@
-import { callJsonStreaming } from '@/lib/anthropic'
+import { callStreaming } from '@/lib/anthropic'
 
 export interface DigestTopic {
   title: string
@@ -76,7 +76,7 @@ ${chatText}`
     elapsedMs: 0,
   })
 
-  const text = await callJsonStreaming(
+  const text = await callStreaming(
     SYSTEM_PROMPT,
     wrappedInput,
     2048,

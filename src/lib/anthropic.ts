@@ -44,9 +44,9 @@ export async function callJson(system: string, userMessage: string, maxTokens = 
 
 /**
  * Streaming 호출. delta가 도착할 때마다 onDelta 콜백 호출.
- * 진행 상황 UI에 사용.
+ * 채팅, 요약 등 응답을 실시간으로 보여주고 싶을 때 사용.
  */
-export async function callJsonStreaming(
+export async function callStreaming(
   system: string,
   userMessage: string,
   maxTokens: number,
