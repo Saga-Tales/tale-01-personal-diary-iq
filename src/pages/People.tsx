@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { db, type Person } from '@/db/schema'
+import { db, type Person, type Fact } from '@/db/schema'
 
 const RELATIONSHIP_LABELS: Record<Person['relationship'], string> = {
   partner: '연인',
@@ -11,13 +11,25 @@ const RELATIONSHIP_LABELS: Record<Person['relationship'], string> = {
 
 export function People() {
   const [people, setPeople] = useState<Person[]>([])
+  const [factsByPerson, setFactsByPerson] = useState<Record<number, Fact[]>>({})
   const [name, setName] = useState('')
   const [relationship, setRelationship] = useState<Person['relationship']>('partner')
   const [birthday, setBirthday] = useState('')
   const [notes, setNotes] = useState('')
 
   async function refresh() {
-    setPeople(await db.people.toArray())
+    const ps = await db.people.toArray()
+    setPeople(ps)
+    const factMap: Record<number, Fact[]> = {}
+    for (const p of ps) {
+      if (p.id) {
+        factMap[p.id] = await db.facts
+          .where('personId')
+          .equals(p.id)
+          .toArray()
+      }
+    }
+    setFactsByPerson(factMap)
   }
 
   useEffect(() => {
@@ -44,6 +56,11 @@ export function People() {
     await db.people.delete(id)
     await db.facts.where('personId').equals(id).delete()
     await db.episodes.where('personId').equals(id).delete()
+    refresh()
+  }
+
+  async function removeFact(id: number) {
+    await db.facts.delete(id)
     refresh()
   }
 
@@ -98,29 +115,57 @@ export function People() {
             아직 등록된 사람이 없어요.
           </p>
         )}
-        {people.map((p) => (
-          <div
-            key={p.id}
-            className="border border-[var(--color-line)] bg-white rounded-lg p-4 flex justify-between items-start"
-          >
-            <div>
-              <div className="font-medium text-lg">{p.name}</div>
-              <div className="text-sm text-[var(--color-ink-soft)]">
-                {RELATIONSHIP_LABELS[p.relationship]}
-                {p.birthday && ` · ${p.birthday}`}
+        {people.map((p) => {
+          const facts = p.id ? factsByPerson[p.id] ?? [] : []
+          return (
+            <div
+              key={p.id}
+              className="border border-[var(--color-line)] bg-white rounded-lg p-4"
+            >
+              <div className="flex justify-between items-start">
+                <div className="flex-1">
+                  <div className="font-medium text-lg">{p.name}</div>
+                  <div className="text-sm text-[var(--color-ink-soft)]">
+                    {RELATIONSHIP_LABELS[p.relationship]}
+                    {p.birthday && ` · ${p.birthday}`}
+                  </div>
+                  {p.notes && (
+                    <div className="text-sm mt-2 text-[var(--color-ink-soft)]">{p.notes}</div>
+                  )}
+                </div>
+                <button
+                  onClick={() => p.id && remove(p.id)}
+                  className="text-[var(--color-accent)] text-sm hover:underline"
+                >
+                  삭제
+                </button>
               </div>
-              {p.notes && (
-                <div className="text-sm mt-2 text-[var(--color-ink-soft)]">{p.notes}</div>
+
+              {facts.length > 0 && (
+                <div className="mt-3 pt-3 border-t border-[var(--color-line)] space-y-1">
+                  <div className="text-xs text-[var(--color-ink-soft)] mb-1 italic">
+                    대화에서 알게 된 것들
+                  </div>
+                  {facts.map((f) => (
+                    <div key={f.id} className="flex items-center justify-between text-sm group">
+                      <div>
+                        <span className="text-[var(--color-ink-soft)]">{f.key}</span>
+                        <span className="mx-2 text-[var(--color-line)]">·</span>
+                        <span>{f.value}</span>
+                      </div>
+                      <button
+                        onClick={() => f.id && removeFact(f.id)}
+                        className="text-[var(--color-accent)] text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
-            <button
-              onClick={() => p.id && remove(p.id)}
-              className="text-[var(--color-accent)] text-sm hover:underline"
-            >
-              삭제
-            </button>
-          </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )

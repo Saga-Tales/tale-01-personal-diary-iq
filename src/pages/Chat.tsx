@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { db } from '@/db/schema'
 import { chat } from '@/lib/anthropic'
 import { buildSystemPrompt } from '@/lib/context'
+import { extractFromMessage } from '@/lib/extractor'
 
 interface UIMessage {
   role: 'user' | 'assistant'
@@ -12,6 +13,7 @@ export function Chat() {
   const [input, setInput] = useState('')
   const [messages, setMessages] = useState<UIMessage[]>([])
   const [loading, setLoading] = useState(false)
+  const [toast, setToast] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -23,6 +25,12 @@ export function Chat() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, loading])
+
+  useEffect(() => {
+    if (!toast) return
+    const t = setTimeout(() => setToast(null), 3000)
+    return () => clearTimeout(t)
+  }, [toast])
 
   async function send() {
     const userMsg = input.trim()
@@ -45,6 +53,19 @@ export function Chat() {
         createdAt: Date.now(),
       })
       setMessages((m) => [...m, { role: 'assistant', content: reply }])
+
+      // 백그라운드 fact extraction — 응답 표시 후 비동기로 처리
+      extractFromMessage(userMsg)
+        .then((res) => {
+          const total = res.inserted + res.updated
+          if (total > 0) {
+            const parts: string[] = []
+            if (res.inserted > 0) parts.push(`${res.inserted}개 추가`)
+            if (res.updated > 0) parts.push(`${res.updated}개 갱신`)
+            setToast(`🔖 ${parts.join(', ')}됨`)
+          }
+        })
+        .catch((e) => console.warn('[extractor] 실패:', e))
     } catch (e) {
       const msg = e instanceof Error ? e.message : '알 수 없는 오류'
       setMessages((m) => [...m, { role: 'assistant', content: `❌ ${msg}` }])
@@ -62,6 +83,11 @@ export function Chat() {
 
   return (
     <div className="max-w-2xl mx-auto p-4 flex flex-col h-[calc(100vh-56px)]">
+      {toast && (
+        <div className="fixed top-16 right-4 bg-[var(--color-ink)] text-[var(--color-paper)] px-4 py-2 rounded-lg text-sm shadow-lg z-50 animate-in fade-in slide-in-from-top-2">
+          {toast}
+        </div>
+      )}
       <div className="flex-1 overflow-y-auto py-6 space-y-4">
         {messages.length === 0 && (
           <p className="text-[var(--color-ink-soft)] text-center mt-12 italic font-display text-lg">

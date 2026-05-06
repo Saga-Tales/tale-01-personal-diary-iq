@@ -1,4 +1,4 @@
-import { db, type Person } from '@/db/schema'
+import { db, type Person, type Fact } from '@/db/schema'
 
 const RELATIONSHIP_LABELS: Record<Person['relationship'], string> = {
   partner: '연인',
@@ -14,11 +14,24 @@ const BASE_SYSTEM = `너는 사용자의 사적인 일기 에이전트야.
 
 응답은 한국어로, 친근한 반말로. 길게 늘어놓지 말고 핵심만 간결하게.`
 
-function formatPerson(p: Person): string {
+interface PersonWithFacts {
+  person: Person
+  facts: Fact[]
+}
+
+function formatPerson({ person: p, facts }: PersonWithFacts): string {
   const lines = [`### ${p.name}`]
   lines.push(`- 관계: ${RELATIONSHIP_LABELS[p.relationship]}`)
   if (p.birthday) lines.push(`- 생일: ${p.birthday}`)
   if (p.notes) lines.push(`- 메모: ${p.notes}`)
+
+  if (facts.length > 0) {
+    lines.push(`- 알려진 사실:`)
+    for (const f of facts) {
+      lines.push(`  - ${f.key}: ${f.value}`)
+    }
+  }
+
   return lines.join('\n')
 }
 
@@ -26,7 +39,16 @@ export async function buildSystemPrompt(): Promise<string> {
   const people = await db.people.toArray()
   if (people.length === 0) return BASE_SYSTEM
 
-  const peopleSection = people.map(formatPerson).join('\n\n')
+  const withFacts: PersonWithFacts[] = await Promise.all(
+    people.map(async (p) => ({
+      person: p,
+      facts: p.id
+        ? await db.facts.where('personId').equals(p.id).toArray()
+        : [],
+    })),
+  )
+
+  const peopleSection = withFacts.map(formatPerson).join('\n\n')
 
   return `${BASE_SYSTEM}
 
