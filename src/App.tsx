@@ -1,0 +1,38 @@
+import { Routes, Route, Navigate, NavLink } from 'react-router-dom'
+import { ApiKeyGate } from '@/components/ApiKeyGate'
+import { Settings } from '@/pages/Settings'
+import { People } from '@/pages/People'
+import { Chat } from '@/pages/Chat'
+
+export default function App() {
+  return (
+    <div className="min-h-screen">
+      <Nav />
+      <Routes>
+        <Route path="/" element={<Navigate to="/chat" replace />} />
+        <Route path="/settings" element={<Settings />} />
+        <Route path="/people" element={<ApiKeyGate><People /></ApiKeyGate>} />
+        <Route path="/chat" element={<ApiKeyGate><Chat /></ApiKeyGate>} />
+      </Routes>
+    </div>
+  )
+}
+
+function Nav() {
+  const linkClass = ({ isActive }: { isActive: boolean }) =>
+    `px-4 py-3 text-sm transition-colors ${
+      isActive
+        ? 'text-[var(--color-ink)] font-medium'
+        : 'text-[var(--color-ink-soft)] hover:text-[var(--color-ink)]'
+    }`
+
+  return (
+    <nav className="border-b border-[var(--color-line)] flex items-center px-2">
+      <div className="font-display text-lg px-3 italic">diary</div>
+      <div className="flex-1" />
+      <NavLink to="/chat" className={linkClass}>대화</NavLink>
+      <NavLink to="/people" className={linkClass}>사람들</NavLink>
+      <NavLink to="/settings" className={linkClass}>설정</NavLink>
+    </nav>
+  )
+}

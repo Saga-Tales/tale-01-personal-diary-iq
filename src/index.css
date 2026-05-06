@@ -1,0 +1,22 @@
+@import "tailwindcss";
+
+@theme {
+  --color-paper: #faf8f3;
+  --color-ink: #1a1a1a;
+  --color-ink-soft: #4a4a4a;
+  --color-line: #e8e2d4;
+  --color-accent: #8b3a3a;
+
+  --font-display: "Newsreader", Georgia, serif;
+  --font-body: "Pretendard Variable", -apple-system, sans-serif;
+}
+
+html, body {
+  background-color: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+}
+
+h1, h2, h3 {
+  font-family: var(--font-display);
+}
