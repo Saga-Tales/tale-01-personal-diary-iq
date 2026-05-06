@@ -3,6 +3,7 @@ import { ApiKeyGate } from '@/components/ApiKeyGate'
 import { Settings } from '@/pages/Settings'
 import { People } from '@/pages/People'
 import { Chat } from '@/pages/Chat'
+import { Data } from '@/pages/Data'
 
 export default function App() {
   return (
@@ -13,6 +14,7 @@ export default function App() {
         <Route path="/settings" element={<Settings />} />
         <Route path="/people" element={<ApiKeyGate><People /></ApiKeyGate>} />
         <Route path="/chat" element={<ApiKeyGate><Chat /></ApiKeyGate>} />
+        <Route path="/data" element={<ApiKeyGate><Data /></ApiKeyGate>} />
       </Routes>
     </div>
   )
@@ -32,6 +34,7 @@ function Nav() {
       <div className="flex-1" />
       <NavLink to="/chat" className={linkClass}>대화</NavLink>
       <NavLink to="/people" className={linkClass}>사람들</NavLink>
+      <NavLink to="/data" className={linkClass}>데이터</NavLink>
       <NavLink to="/settings" className={linkClass}>설정</NavLink>
     </nav>
   )
