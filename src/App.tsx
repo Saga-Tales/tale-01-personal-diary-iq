@@ -1,17 +1,18 @@
-import { Routes, Route, Navigate, NavLink } from 'react-router-dom'
+import { Routes, Route, NavLink, Link } from 'react-router-dom'
 import { ApiKeyGate } from '@/components/ApiKeyGate'
 import { Settings } from '@/pages/Settings'
 import { People } from '@/pages/People'
 import { Chat } from '@/pages/Chat'
 import { Data } from '@/pages/Data'
 import { Digest } from '@/pages/Digest'
+import { Home } from '@/pages/Home'
 
 export default function App() {
   return (
     <div className="min-h-screen">
       <Nav />
       <Routes>
-        <Route path="/" element={<Navigate to="/chat" replace />} />
+        <Route path="/" element={<ApiKeyGate><Home /></ApiKeyGate>} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/people" element={<ApiKeyGate><People /></ApiKeyGate>} />
         <Route path="/chat" element={<ApiKeyGate><Chat /></ApiKeyGate>} />
@@ -32,9 +33,12 @@ function Nav() {
 
   return (
     <nav className="border-b border-[var(--color-line)] flex items-center pl-5 sm:pl-7 pr-2">
-      <h1 className="font-display text-2xl italic py-3 select-none">
+      <Link
+        to="/"
+        className="font-display text-2xl italic py-3 select-none no-underline text-[var(--color-ink)] hover:opacity-70 transition-opacity"
+      >
         diary
-      </h1>
+      </Link>
       <div className="flex-1" />
       <NavLink to="/chat" className={linkClass}>대화</NavLink>
       <NavLink to="/people" className={linkClass}>사람들</NavLink>
