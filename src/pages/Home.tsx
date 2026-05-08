@@ -12,7 +12,11 @@ import {
   computeRhythm,
   buildHeroGreeting,
   daysSinceBackup,
+  getActivityCalendar,
+  computeWeekActivity,
   type HeroGreeting,
+  type DayActivity,
+  type WeekActivity,
 } from '@/lib/diary-state'
 
 interface Counts {
@@ -34,6 +38,9 @@ export function Home() {
   const [recentFacts, setRecentFacts] = useState<RecentFact[]>([])
   const [greeting, setGreeting] = useState<HeroGreeting | null>(null)
   const [backupDays, setBackupDays] = useState<number | null>(null)
+  const [calendar, setCalendar] = useState<DayActivity[] | null>(null)
+  const [weekActivity, setWeekActivity] = useState<WeekActivity | null>(null)
+  const [streakDays, setStreakDays] = useState(0)
   const [digestProgress, setDigestProgress] = useState<DigestProgress | null>(null)
   const [digestResult, setDigestResult] = useState<DigestOutput | null>(null)
   const [digestError, setDigestError] = useState<string | null>(null)
@@ -43,7 +50,7 @@ export function Home() {
   }, [])
 
   async function loadAll() {
-    const [peopleCount, factCount, episodeCount, peopleAll, allFacts, ub, rhythm] =
+    const [peopleCount, factCount, episodeCount, peopleAll, allFacts, ub, rhythm, cal, week] =
       await Promise.all([
         db.people.count(),
         db.facts.count(),
@@ -52,11 +59,16 @@ export function Home() {
         db.facts.toArray(),
         getUpcomingBirthdays(60),
         computeRhythm(),
+        getActivityCalendar(30),
+        computeWeekActivity(),
       ])
 
     setCounts({ people: peopleCount, facts: factCount, episodes: episodeCount })
     setGreeting(buildHeroGreeting(rhythm))
     setBackupDays(daysSinceBackup())
+    setCalendar(cal)
+    setWeekActivity(week)
+    setStreakDays(rhythm.streakDays)
 
     const peopleMap = new Map(peopleAll.map((p) => [p.id!, p.name]))
     const sorted = [...allFacts].sort((a, b) => b.createdAt - a.createdAt).slice(0, 5)
@@ -111,6 +123,12 @@ export function Home() {
         <CounterCard label="알게 된 것" value={counts.facts} />
         <CounterCard label="일화" value={counts.episodes} />
       </div>
+
+      {/* 30일 streak grid — dogfooding 동기 부여 */}
+      {calendar && <RhythmCard calendar={calendar} streakDays={streakDays} />}
+
+      {/* 이번 주 활동 — self-feedback metric */}
+      {weekActivity && <WeekActivityCard activity={weekActivity} />}
 
       {/* 백업 알림 — 30일+ 안 했을 때만 부드럽게 */}
       {backupDays !== null && backupDays >= 30 && (
@@ -235,7 +253,7 @@ function Hero({ greeting }: { greeting: HeroGreeting | null }) {
       </h1>
       <div className="flex justify-center mt-5">
         <Link to="/chat" className="btn-primary inline-flex items-center gap-2 no-underline">
-          <span>기록하기</span>
+          <span>{greeting.ctaLabel}</span>
           <span className="text-[var(--color-gold-soft)]">→</span>
         </Link>
       </div>
@@ -260,6 +278,169 @@ function CounterCard({ label, value }: { label: string; value: number }) {
       <div className="text-[10px] uppercase tracking-[0.18em] text-[var(--color-ink-soft)] mt-2.5">
         {label}
       </div>
+    </div>
+  )
+}
+
+function RhythmCard({
+  calendar,
+  streakDays,
+}: {
+  calendar: DayActivity[]
+  streakDays: number
+}) {
+  const totalDaysWritten = calendar.filter((d) => d.count > 0).length
+  const streakLine =
+    streakDays === 0
+      ? '오늘부터 시작하면 1일째'
+      : streakDays === 1
+        ? '오늘이 1일째'
+        : `${streakDays}일째 이어가는 중 ✦`
+  return (
+    <section className="card-ruled p-5">
+      <header className="mb-3 flex items-baseline justify-between">
+        <div className="flex items-baseline gap-2">
+          <span className="text-[var(--color-gold)] text-sm leading-none">✦</span>
+          <h2 className="font-display italic text-lg text-[var(--color-ink-warm)]">
+            나의 리듬
+          </h2>
+        </div>
+        <span className="eyebrow">지난 30일</span>
+      </header>
+
+      <p className="text-sm text-[var(--color-ink-warm)] mb-3 font-display italic">
+        {streakLine}
+      </p>
+
+      <StreakGrid days={calendar} />
+
+      <div className="mt-3 flex items-baseline justify-between text-[11px] text-[var(--color-ink-soft)]">
+        <span>
+          기록한 날 <span className="numeral text-[var(--color-ink-warm)]">{totalDaysWritten}</span>
+          {' / 30'}
+        </span>
+        <span className="flex items-center gap-1.5">
+          <LegendDot color="var(--color-line)" />
+          없음
+          <LegendDot color="var(--color-gold)" />
+          있음
+          <LegendDot color="var(--color-accent)" />
+          많이
+        </span>
+      </div>
+    </section>
+  )
+}
+
+function StreakGrid({ days }: { days: DayActivity[] }) {
+  return (
+    <div className="flex gap-[3px] flex-wrap">
+      {days.map((d) => {
+        const color =
+          d.count === 0
+            ? 'var(--color-line)'
+            : d.count >= 3
+              ? 'var(--color-accent)'
+              : 'var(--color-gold)'
+        return (
+          <div
+            key={d.date}
+            className="w-[10px] h-[10px] rounded-sm transition-colors"
+            style={{ background: color }}
+            title={`${d.date}: ${d.count > 0 ? `${d.count}회 기록` : '기록 없음'}`}
+            aria-label={`${d.date}: ${d.count}회 기록`}
+          />
+        )
+      })}
+    </div>
+  )
+}
+
+function LegendDot({ color }: { color: string }) {
+  return (
+    <span
+      aria-hidden
+      className="inline-block w-[6px] h-[6px] rounded-sm"
+      style={{ background: color }}
+    />
+  )
+}
+
+function WeekActivityCard({ activity }: { activity: WeekActivity }) {
+  const isEmpty = activity.chatCount === 0 && activity.factChanges === 0 && activity.factDeletions === 0
+  return (
+    <section className="card-ruled p-5">
+      <header className="mb-3 flex items-baseline justify-between">
+        <div className="flex items-baseline gap-2">
+          <span className="text-[var(--color-gold)] text-sm leading-none">✦</span>
+          <h2 className="font-display italic text-lg text-[var(--color-ink-warm)]">
+            이번 주 활동
+          </h2>
+        </div>
+        <span className="eyebrow">월요일부터</span>
+      </header>
+
+      {isEmpty ? (
+        <p className="text-sm text-[var(--color-ink-soft)] italic font-display">
+          아직 이번 주 기록이 없어. 첫 줄 한 번 적어볼래?
+        </p>
+      ) : (
+        <div className="grid grid-cols-3 gap-3 text-center">
+          <ActivityStat
+            value={activity.chatCount}
+            label="대화"
+            sublabel={activity.chatCount > 0 ? '회' : ''}
+          />
+          <ActivityStat
+            value={activity.factChanges}
+            label="알게 된 것"
+            sublabel={activity.factChanges > 0 ? '개 추가/갱신' : ''}
+          />
+          <ActivityStat
+            value={activity.factDeletions}
+            label="직접 삭제"
+            sublabel={activity.factDeletions > 0 ? '개' : ''}
+            tone={activity.factDeletions > 0 ? 'accent' : undefined}
+            hint={
+              activity.factDeletions > 0
+                ? '잘못 추출된 fact를 직접 지운 횟수 (낮을수록 추출 정확도 ↑)'
+                : undefined
+            }
+          />
+        </div>
+      )}
+    </section>
+  )
+}
+
+function ActivityStat({
+  value,
+  label,
+  sublabel,
+  tone,
+  hint,
+}: {
+  value: number
+  label: string
+  sublabel?: string
+  tone?: 'accent'
+  hint?: string
+}) {
+  return (
+    <div title={hint}>
+      <div
+        className={`numeral text-2xl leading-none ${tone === 'accent' ? 'text-[var(--color-accent)]' : 'text-[var(--color-ink-warm)]'}`}
+      >
+        {value}
+      </div>
+      <div className="text-[10px] uppercase tracking-[0.14em] text-[var(--color-ink-soft)] mt-1.5">
+        {label}
+      </div>
+      {sublabel && (
+        <div className="text-[10px] text-[var(--color-ink-soft)]/70 italic mt-0.5">
+          {sublabel}
+        </div>
+      )}
     </div>
   )
 }
