@@ -4,6 +4,10 @@ node_modules
 # build output
 dist
 dist-ssr
+*.tsbuildinfo
+
+# claude code workspace
+.claude/
 
 # system
 .DS_Store

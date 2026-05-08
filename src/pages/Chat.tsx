@@ -131,30 +131,40 @@ export function Chat() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto p-4 flex flex-col h-[calc(100vh-56px)]">
+    <div className="max-w-2xl mx-auto px-4 sm:px-6 flex flex-col h-[calc(100vh-56px)]">
       {toast && (
-        <div className="fixed top-16 right-4 bg-[var(--color-ink)] text-[var(--color-paper)] px-4 py-2 rounded-lg text-sm shadow-lg z-50 animate-in fade-in slide-in-from-top-2">
+        <div className="fixed top-16 right-4 bg-[var(--color-ink-warm)] text-[var(--color-paper)] px-4 py-2 rounded-lg text-sm z-50 animate-in fade-in slide-in-from-top-2"
+             style={{ boxShadow: 'var(--shadow-lift)' }}>
           {toast}
         </div>
       )}
       {embedderProgress !== null && embedderProgress < 100 && (
-        <div className="fixed top-16 left-1/2 -translate-x-1/2 bg-white border border-[var(--color-line)] px-4 py-2 rounded-lg text-xs shadow-lg z-50 flex items-center gap-3">
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 bg-[var(--color-surface)]/90 backdrop-blur border border-[var(--color-line)] px-4 py-2 rounded-lg text-xs z-50 flex items-center gap-3"
+             style={{ boxShadow: 'var(--shadow-lift)' }}>
           <div className="w-32 h-1 bg-[var(--color-line)] rounded-full overflow-hidden">
             <div
-              className="h-full bg-[var(--color-ink)] transition-all"
+              className="h-full bg-gradient-to-r from-[var(--color-gold)] to-[var(--color-ink-warm)] transition-all"
               style={{ width: `${embedderProgress}%` }}
             />
           </div>
-          <span className="text-[var(--color-ink-soft)]">
+          <span className="text-[var(--color-ink-soft)] tabular-nums">
             기억 모델 로딩 {embedderProgress}%
           </span>
         </div>
       )}
-      <div className="flex-1 overflow-y-auto py-6 space-y-4">
+      <div className="flex-1 overflow-y-auto py-8 space-y-4">
         {messages.length === 0 && (
-          <p className="text-[var(--color-ink-soft)] text-center mt-12 italic font-display text-lg">
-            오늘 무슨 일 있었어?
-          </p>
+          <div className="text-center mt-16 ink-in">
+            <div className="divider-ornate max-w-[200px] mx-auto mb-4">
+              <span className="select-none">✦</span>
+            </div>
+            <p className="text-[var(--color-ink-warm)] italic font-display text-2xl leading-snug">
+              오늘 무슨 일 있었어?
+            </p>
+            <p className="text-xs text-[var(--color-ink-soft)] mt-3 tracking-wide">
+              느낀 점, 만난 사람, 사소한 변화 무엇이든
+            </p>
+          </div>
         )}
         {messages.map((m, i) => {
           const isLast = i === messages.length - 1
@@ -163,24 +173,32 @@ export function Chat() {
           return (
             <div
               key={i}
-              className={m.role === 'user' ? 'flex justify-end' : 'flex justify-start'}
+              className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'} ink-in`}
             >
               <div
                 className={`max-w-[85%] rounded-2xl px-4 py-2.5 leading-relaxed whitespace-pre-wrap ${
                   m.role === 'user'
-                    ? 'bg-[var(--color-ink)] text-[var(--color-paper)]'
-                    : 'bg-white border border-[var(--color-line)]'
+                    ? 'text-[var(--color-paper)] rounded-br-md'
+                    : 'bg-[var(--color-surface)] border border-[var(--color-line)] rounded-bl-md text-[var(--color-ink-warm)]'
                 }`}
+                style={
+                  m.role === 'user'
+                    ? {
+                        background: 'linear-gradient(180deg, var(--color-ink-warm), var(--color-ink))',
+                        boxShadow: 'var(--shadow-lift)',
+                      }
+                    : { boxShadow: 'var(--shadow-soft)' }
+                }
               >
                 {showDots ? (
-                  <span className="text-[var(--color-ink-soft)] inline-block animate-pulse">
+                  <span className="text-[var(--color-ink-soft)] inline-block animate-pulse tracking-widest">
                     ···
                   </span>
                 ) : (
                   <>
                     {m.content}
                     {isStreaming && (
-                      <span className="inline-block w-1.5 h-4 bg-current align-text-bottom animate-pulse ml-0.5" />
+                      <span className="inline-block w-[3px] h-4 bg-[var(--color-gold)] align-text-bottom animate-pulse ml-1 rounded-sm" />
                     )}
                   </>
                 )}
@@ -193,7 +211,8 @@ export function Chat() {
 
       <div className="flex gap-2 py-3 border-t border-[var(--color-line)]">
         <textarea
-          className="flex-1 border border-[var(--color-line)] bg-white rounded-lg px-3 py-2 resize-none focus:outline-none focus:border-[var(--color-ink)]"
+          className="flex-1 border border-[var(--color-line)] bg-white rounded-lg px-3 py-2.5 resize-none focus:outline-none focus:border-[var(--color-ink-warm)] focus:ring-2 focus:ring-[var(--color-gold)]/20 transition-shadow"
+          style={{ boxShadow: 'var(--shadow-press)' }}
           rows={1}
           value={input}
           onChange={(e) => setInput(e.target.value)}
@@ -204,7 +223,7 @@ export function Chat() {
         <button
           onClick={send}
           disabled={loading || !input.trim()}
-          className="bg-[var(--color-ink)] text-[var(--color-paper)] px-5 rounded-lg disabled:opacity-30"
+          className="btn-primary px-5"
         >
           전송
         </button>

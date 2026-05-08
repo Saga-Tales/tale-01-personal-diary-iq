@@ -47,8 +47,11 @@ export function InstallHint() {
 
   if (installed) {
     return (
-      <section className="border border-[var(--color-line)] bg-white rounded-xl p-5">
-        <h2 className="font-display text-lg mb-1">홈 화면에 추가됨 ✓</h2>
+      <section className="card-ruled p-5">
+        <h2 className="font-display italic text-lg mb-1 text-[var(--color-ink-warm)] flex items-center gap-2">
+          <span className="text-[var(--color-gold)]">✓</span>
+          홈 화면에 추가됨
+        </h2>
         <p className="text-sm text-[var(--color-ink-soft)]">
           PWA로 실행 중. 데이터는 모두 너의 기기에 저장돼.
         </p>
@@ -66,9 +69,12 @@ export function InstallHint() {
   }
 
   return (
-    <section className="border border-[var(--color-line)] bg-white rounded-xl p-5 space-y-3">
+    <section className="card-ruled p-5 space-y-3">
       <header>
-        <h2 className="font-display text-lg">홈 화면에 추가</h2>
+        <h2 className="font-display italic text-lg text-[var(--color-ink-warm)] flex items-center gap-2">
+          <span className="text-[var(--color-gold)]">✦</span>
+          홈 화면에 추가
+        </h2>
         <p className="text-xs text-[var(--color-ink-soft)] mt-0.5">
           모바일에서 일반 앱처럼 사용하기
         </p>

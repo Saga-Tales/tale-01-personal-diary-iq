@@ -78,14 +78,14 @@ export function validateAndResolve(
       continue
     }
 
-    const personId = resolvePerson(f.person_name, people)
-    if (!personId) {
-      rejected.push({ fact: f, reason: `person not found: ${f.person_name}` })
+    const resolved = resolvePerson(f.person_name, people)
+    if (!resolved.ok) {
+      rejected.push({ fact: f, reason: resolved.reason })
       continue
     }
 
     valid.push({
-      personId,
+      personId: resolved.personId,
       key: f.key.trim(),
       value: f.value.trim(),
       confidence: f.confidence,
@@ -95,19 +95,38 @@ export function validateAndResolve(
   return { valid, rejected }
 }
 
-function resolvePerson(name: string, people: Person[]): number | null {
-  if (!name || people.length === 0) return null
+type ResolveResult =
+  | { ok: true; personId: number }
+  | { ok: false; reason: string }
 
-  // 1) 정확 이름 매칭
-  const exact = people.find((p) => p.name === name)
-  if (exact?.id) return exact.id
+function resolvePerson(name: string, people: Person[]): ResolveResult {
+  if (!name) return { ok: false, reason: 'empty name' }
+  if (people.length === 0) return { ok: false, reason: 'no people registered' }
 
-  // 2) 관계어 → relationship 매칭
-  const rel = RELATIONSHIP_KEYWORDS[name]
-  if (rel) {
-    const match = people.find((p) => p.relationship === rel)
-    if (match?.id) return match.id
+  // 1) 정확 이름 매칭 (name은 이름 그대로니까 동명이인 가능)
+  const exactMatches = people.filter((p) => p.name === name)
+  if (exactMatches.length === 1 && exactMatches[0].id) {
+    return { ok: true, personId: exactMatches[0].id }
+  }
+  if (exactMatches.length > 1) {
+    return { ok: false, reason: `ambiguous name "${name}": ${exactMatches.length} people share this name` }
   }
 
-  return null
+  // 2) 관계어 → relationship 매칭. 1:1일 때만 안전. 모호하면 명시적 거부.
+  const rel = RELATIONSHIP_KEYWORDS[name]
+  if (rel) {
+    const candidates = people.filter((p) => p.relationship === rel)
+    if (candidates.length === 1 && candidates[0].id) {
+      return { ok: true, personId: candidates[0].id }
+    }
+    if (candidates.length > 1) {
+      return {
+        ok: false,
+        reason: `ambiguous keyword "${name}": ${candidates.length} ${rel} candidates (${candidates.map((p) => p.name).join(', ')}) — extract by exact name instead`,
+      }
+    }
+    return { ok: false, reason: `keyword "${name}" maps to relationship "${rel}" but no person registered as ${rel}` }
+  }
+
+  return { ok: false, reason: `person "${name}" not found and not a recognized relationship keyword` }
 }

@@ -65,23 +65,26 @@ export function People() {
   }
 
   return (
-    <div className="max-w-xl mx-auto p-8">
-      <h1 className="text-3xl mb-2">사람들</h1>
-      <p className="text-[var(--color-ink-soft)] mb-8 italic">
-        기억하고 싶은 사람들.
-      </p>
+    <div className="max-w-xl mx-auto p-6 sm:p-8">
+      <PageHeader
+        title="사람들"
+        subtitle="기억하고 싶은 사람들"
+        ornament="❀"
+      />
 
-      <div className="border border-[var(--color-line)] bg-white rounded-lg p-5 mb-6 space-y-3">
+      <div
+        className="card p-5 mb-6 space-y-3"
+      >
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="이름"
-          className="w-full border-b border-[var(--color-line)] py-2 focus:outline-none focus:border-[var(--color-ink)] bg-transparent"
+          className="w-full border-b border-[var(--color-line)] py-2 focus:outline-none focus:border-[var(--color-ink-warm)] bg-transparent transition-colors"
         />
         <select
           value={relationship}
           onChange={(e) => setRelationship(e.target.value as Person['relationship'])}
-          className="w-full border-b border-[var(--color-line)] py-2 focus:outline-none focus:border-[var(--color-ink)] bg-transparent"
+          className="w-full border-b border-[var(--color-line)] py-2 focus:outline-none focus:border-[var(--color-ink-warm)] bg-transparent transition-colors"
         >
           {Object.entries(RELATIONSHIP_LABELS).map(([k, v]) => (
             <option key={k} value={k}>{v}</option>
@@ -91,27 +94,27 @@ export function People() {
           type="date"
           value={birthday}
           onChange={(e) => setBirthday(e.target.value)}
-          className="w-full border-b border-[var(--color-line)] py-2 focus:outline-none focus:border-[var(--color-ink)] bg-transparent"
+          className="w-full border-b border-[var(--color-line)] py-2 focus:outline-none focus:border-[var(--color-ink-warm)] bg-transparent transition-colors"
         />
         <textarea
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           placeholder="이 사람에 대한 메모 (선택)"
           rows={3}
-          className="w-full border border-[var(--color-line)] rounded p-2 text-sm focus:outline-none focus:border-[var(--color-ink)] bg-transparent resize-none"
+          className="w-full border border-[var(--color-line)] rounded p-2 text-sm focus:outline-none focus:border-[var(--color-ink-warm)] bg-transparent resize-none transition-colors"
         />
         <button
           onClick={add}
           disabled={!name.trim()}
-          className="bg-[var(--color-ink)] text-[var(--color-paper)] px-5 py-2 rounded-lg w-full disabled:opacity-30"
+          className="btn-primary w-full"
         >
           추가
         </button>
       </div>
 
-      <div className="space-y-2">
+      <div className="space-y-3">
         {people.length === 0 && (
-          <p className="text-[var(--color-ink-soft)] text-center py-12 italic">
+          <p className="text-[var(--color-ink-soft)] text-center py-12 italic font-display">
             아직 등록된 사람이 없어요.
           </p>
         )}
@@ -120,38 +123,48 @@ export function People() {
           return (
             <div
               key={p.id}
-              className="border border-[var(--color-line)] bg-white rounded-lg p-4"
+              className="card-ruled p-4 sm:p-5 transition-shadow hover:[box-shadow:var(--shadow-lift)]"
             >
               <div className="flex justify-between items-start">
                 <div className="flex-1">
-                  <div className="font-medium text-lg">{p.name}</div>
-                  <div className="text-sm text-[var(--color-ink-soft)]">
+                  <div className="font-display italic text-xl text-[var(--color-ink-warm)] leading-tight">
+                    {p.name}
+                  </div>
+                  <div className="text-xs uppercase tracking-[0.14em] text-[var(--color-ink-soft)] mt-1.5">
                     {RELATIONSHIP_LABELS[p.relationship]}
-                    {p.birthday && ` · ${p.birthday}`}
+                    {p.birthday && (
+                      <>
+                        <span className="mx-1.5 text-[var(--color-gold)]">·</span>
+                        <span className="tabular-nums normal-case tracking-normal">{p.birthday}</span>
+                      </>
+                    )}
                   </div>
                   {p.notes && (
-                    <div className="text-sm mt-2 text-[var(--color-ink-soft)]">{p.notes}</div>
+                    <div className="text-sm mt-2.5 text-[var(--color-ink-soft)] leading-relaxed">
+                      {p.notes}
+                    </div>
                   )}
                 </div>
                 <button
                   onClick={() => p.id && remove(p.id)}
-                  className="text-[var(--color-accent)] text-sm hover:underline"
+                  className="text-[var(--color-accent)] text-xs hover:underline opacity-60 hover:opacity-100 transition-opacity"
                 >
                   삭제
                 </button>
               </div>
 
               {facts.length > 0 && (
-                <div className="mt-3 pt-3 border-t border-[var(--color-line)] space-y-1">
-                  <div className="text-xs text-[var(--color-ink-soft)] mb-1 italic">
+                <div className="mt-4 pt-3 border-t border-dashed border-[var(--color-line)] space-y-1.5">
+                  <div className="eyebrow mb-1.5 flex items-center gap-1.5">
+                    <span className="text-[var(--color-gold)]">✦</span>
                     대화에서 알게 된 것들
                   </div>
                   {facts.map((f) => (
                     <div key={f.id} className="flex items-center justify-between text-sm group">
                       <div>
-                        <span className="text-[var(--color-ink-soft)]">{f.key}</span>
-                        <span className="mx-2 text-[var(--color-line)]">·</span>
-                        <span>{f.value}</span>
+                        <span className="text-[var(--color-ink-soft)] font-display italic">{f.key}</span>
+                        <span className="mx-2 text-[var(--color-gold)]/60">·</span>
+                        <span className="text-[var(--color-ink-warm)]">{f.value}</span>
                       </div>
                       <button
                         onClick={() => f.id && removeFact(f.id)}
@@ -168,5 +181,32 @@ export function People() {
         })}
       </div>
     </div>
+  )
+}
+
+function PageHeader({
+  title,
+  subtitle,
+  ornament,
+}: {
+  title: string
+  subtitle?: string
+  ornament?: string
+}) {
+  return (
+    <header className="mb-8 ink-in">
+      {ornament && (
+        <div className="text-[var(--color-gold)] text-sm mb-2">{ornament}</div>
+      )}
+      <h1 className="font-display italic text-4xl text-[var(--color-ink-warm)] leading-tight">
+        {title}
+      </h1>
+      {subtitle && (
+        <p className="text-[var(--color-ink-soft)] mt-1.5 italic font-display">
+          {subtitle}
+        </p>
+      )}
+      <div className="mt-4 h-px bg-gradient-to-r from-[var(--color-gold)] via-[var(--color-line)] to-transparent" />
+    </header>
   )
 }
