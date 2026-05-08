@@ -1,11 +1,13 @@
 // diary PWA service worker
-// 전략: stale-while-revalidate (cache 있으면 즉시 반환 + 백그라운드 갱신)
+// 전략:
+//   - navigation (HTML): network-first with 3s timeout, fallback to cache
+//   - 그 외 GET: stale-while-revalidate (asset bundle은 hash-named이라 안전)
 // 예외: api.anthropic.com 호출은 절대 캐시하지 않음 (인증 + 동적 응답)
 
-const VERSION = 'v2'
+const VERSION = 'v3'
 const CACHE = `diary-${VERSION}`
+const NAV_TIMEOUT_MS = 3000
 
-// 설치 시 핵심 path만 우선 캐시 (오프라인 첫 진입 시 셸 생존)
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE).then((cache) => cache.add('./'))
@@ -14,7 +16,6 @@ self.addEventListener('install', (event) => {
   )
 })
 
-// 활성화 시 옛 버전 캐시 정리
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
@@ -27,34 +28,31 @@ self.addEventListener('activate', (event) => {
   )
 })
 
-// fetch handler
 self.addEventListener('fetch', (event) => {
-  // GET만 캐싱 (POST/PUT 등은 그대로 통과)
   if (event.request.method !== 'GET') return
 
   const url = new URL(event.request.url)
-
-  // Anthropic API 호출은 절대 캐시 안 함 (그대로 네트워크로)
   if (url.hostname === 'api.anthropic.com') return
-
-  // chrome-extension:// 같은 비표준 scheme도 무시
   if (!url.protocol.startsWith('http')) return
 
-  // Navigation 요청 (HTML 페이지) → 항상 캐시된 shell 반환 (SPA)
-  // 이렇게 하면 /chat 같은 URL로 새로고침해도 GitHub Pages 404 우회
-  // SW가 이미 등록된 사용자한테는 404.html redirect 라운드트립이 안 일어남
+  // Navigation 요청 (HTML) → network-first.
+  // 옛 cache-first 전략은 새 배포 후에도 사용자가 옛 버전을 보는 문제가 있어서 변경.
+  // 자산 번들은 hash-named이라 immutable이지만 index.html은 매 배포마다 바뀌니
+  // 항상 fresh HTML을 받아야 새 hash 자산을 로드함.
+  // 오프라인 / 타임아웃 시에만 캐시 폴백 → SPA 라우팅 + 오프라인 첫 진입은 그대로 보장.
   if (event.request.mode === 'navigate') {
     event.respondWith(
       caches.open(CACHE).then(async (cache) => {
-        const cached = await cache.match('./')
-        if (cached) return cached
-        // 캐시 miss (첫 방문 or 캐시 비어있을 때) → 네트워크 폴백
         try {
-          const fresh = await fetch('./')
-          if (fresh.ok) cache.put('./', fresh.clone())
-          return fresh
+          const fresh = await fetchWithTimeout('./', NAV_TIMEOUT_MS)
+          if (fresh.ok) {
+            cache.put('./', fresh.clone()).catch(() => {})
+            return fresh
+          }
+          throw new Error(`navigation fetch returned ${fresh.status}`)
         } catch {
-          return Response.error()
+          const cached = await cache.match('./')
+          return cached ?? Response.error()
         }
       }),
     )
@@ -67,7 +65,6 @@ self.addEventListener('fetch', (event) => {
       const cached = await cache.match(event.request)
       const fetchPromise = fetch(event.request)
         .then((response) => {
-          // 200 OK 응답만 캐시 (오류 응답 캐시하면 안 됨)
           if (response.ok) {
             cache.put(event.request, response.clone()).catch(() => {})
           }
@@ -75,14 +72,24 @@ self.addEventListener('fetch', (event) => {
         })
         .catch(() => cached || Response.error())
 
-      // cache 있으면 즉시 반환 + 백그라운드 갱신 (stale-while-revalidate)
-      // cache 없으면 fetch 결과 대기
       return cached || fetchPromise
     }),
   )
 })
 
-// 메인 스레드에서 'SKIP_WAITING' 메시지 받으면 즉시 활성화
 self.addEventListener('message', (event) => {
   if (event.data?.type === 'SKIP_WAITING') self.skipWaiting()
 })
+
+function fetchWithTimeout(url, ms) {
+  return new Promise((resolve, reject) => {
+    const controller = new AbortController()
+    const timer = setTimeout(() => {
+      controller.abort()
+      reject(new Error('timeout'))
+    }, ms)
+    fetch(url, { signal: controller.signal })
+      .then((r) => { clearTimeout(timer); resolve(r) })
+      .catch((e) => { clearTimeout(timer); reject(e) })
+  })
+}
