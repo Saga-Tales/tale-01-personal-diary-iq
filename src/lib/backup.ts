@@ -1,4 +1,5 @@
 import { db } from '@/db/schema'
+import { markBackupNow } from '@/lib/diary-state'
 
 const PBKDF2_ITERATIONS = 100_000
 const SALT_LEN = 16
@@ -94,7 +95,9 @@ export async function exportBackup(password: string): Promise<string> {
     episodes: await db.episodes.toArray(),
     messages: await db.messages.toArray(),
   }
-  return encrypt(JSON.stringify(data), password)
+  const encrypted = await encrypt(JSON.stringify(data), password)
+  markBackupNow()
+  return encrypted
 }
 
 export interface RestoreResult {

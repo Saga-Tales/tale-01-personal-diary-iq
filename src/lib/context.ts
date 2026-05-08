@@ -15,6 +15,45 @@ const BASE_SYSTEM = `너는 사용자의 사적인 일기 에이전트야.
 
 응답은 한국어로, 친근한 반말로. 길게 늘어놓지 말고 핵심만 간결하게.`
 
+const WEEKDAY_KO = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일']
+
+function buildNowSection(now: Date, lastEpisodeAt: number | null): string {
+  const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+  const weekday = WEEKDAY_KO[now.getDay()]
+  const hour = now.getHours()
+  const timeOfDay =
+    hour < 5 ? '새벽' :
+    hour < 9 ? '아침' :
+    hour < 12 ? '오전' :
+    hour < 17 ? '오후' :
+    hour < 22 ? '저녁' : '밤'
+
+  const lines = [
+    `## 현재 시점`,
+    `- 오늘: ${dateStr} ${weekday} (${timeOfDay})`,
+    `- 사용자가 "어제/내일/지난주/이번 주말" 같은 상대적 시간 표현을 쓰면 위 날짜 기준으로 해석해.`,
+    `- "퇴근 후/아침에" 같은 시간대 표현은 현재 ${timeOfDay}임을 고려해.`,
+  ]
+
+  if (lastEpisodeAt) {
+    const diffMs = now.getTime() - lastEpisodeAt
+    const diffDays = Math.floor(diffMs / (24 * 60 * 60 * 1000))
+    const diffHours = Math.floor(diffMs / (60 * 60 * 1000))
+    let recency: string
+    if (diffHours < 1) recency = '방금 전'
+    else if (diffHours < 24 && diffDays === 0) recency = `${diffHours}시간 전 (오늘)`
+    else if (diffDays === 1) recency = '어제'
+    else if (diffDays < 7) recency = `${diffDays}일 전`
+    else if (diffDays < 30) recency = `${Math.floor(diffDays / 7)}주 전`
+    else recency = `${Math.floor(diffDays / 30)}개월 전`
+    lines.push(`- 마지막 대화: ${recency}`)
+  } else {
+    lines.push(`- 마지막 대화: (없음 — 첫 대화)`)
+  }
+
+  return lines.join('\n')
+}
+
 interface PersonWithFacts {
   person: Person
   facts: Fact[]
@@ -39,7 +78,12 @@ function formatPerson({ person: p, facts }: PersonWithFacts): string {
 export async function buildSystemPrompt(query?: string): Promise<string> {
   const people = await db.people.toArray()
 
-  const sections: string[] = [BASE_SYSTEM]
+  // 마지막 episode 시점 — 오늘이 처음인지/연속인지/오랜만인지 Claude가 판단하도록
+  const lastEpisode = await db.episodes.orderBy('createdAt').last()
+  const sections: string[] = [
+    BASE_SYSTEM,
+    buildNowSection(new Date(), lastEpisode?.createdAt ?? null),
+  ]
 
   // 등록된 사람들 + facts
   if (people.length > 0) {

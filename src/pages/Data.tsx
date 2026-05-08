@@ -7,6 +7,7 @@ import {
   type UpcomingBirthday,
 } from '@/lib/ical'
 import { exportBackup, restoreBackup, type RestoreResult } from '@/lib/backup'
+import { daysSinceBackup } from '@/lib/diary-state'
 import {
   parseKakaoExport,
   groupByDay,
@@ -21,11 +22,15 @@ import { FileDropZone } from '@/components/FileDropZone'
 export function Data() {
   return (
     <div className="max-w-2xl mx-auto p-6 sm:p-8 space-y-6">
-      <header className="mb-2">
-        <h1 className="text-3xl mb-1">데이터</h1>
-        <p className="text-[var(--color-ink-soft)] italic text-sm">
+      <header className="ink-in">
+        <div className="text-[var(--color-gold)] text-sm mb-2">✦</div>
+        <h1 className="font-display italic text-4xl text-[var(--color-ink-warm)] leading-tight">
+          데이터
+        </h1>
+        <p className="text-[var(--color-ink-soft)] italic font-display mt-1.5 text-sm">
           백업, 가져오기, 기념일.
         </p>
+        <div className="mt-4 mb-2 h-px bg-gradient-to-r from-[var(--color-gold)] via-[var(--color-line)] to-transparent" />
       </header>
 
       <BirthdaysCard />
@@ -50,11 +55,11 @@ function Card({
   children: React.ReactNode
 }) {
   return (
-    <section className="border border-[var(--color-line)] bg-white rounded-xl p-6 shadow-sm">
-      <header className="flex items-baseline gap-3 mb-4 pb-4 border-b border-[var(--color-line)]">
+    <section className="card-ruled p-6">
+      <header className="flex items-baseline gap-3 mb-4 pb-4 border-b border-dashed border-[var(--color-line)]">
         <span className="text-2xl leading-none">{icon}</span>
         <div>
-          <h2 className="font-display text-xl">{title}</h2>
+          <h2 className="font-display italic text-xl text-[var(--color-ink-warm)]">{title}</h2>
           <p className="text-xs text-[var(--color-ink-soft)] italic mt-0.5">
             {subtitle}
           </p>
@@ -172,6 +177,7 @@ function BackupCard() {
   const [message, setMessage] = useState<{ type: 'ok' | 'err'; text: string } | null>(
     null,
   )
+  const [lastBackupDays, setLastBackupDays] = useState<number | null>(daysSinceBackup())
 
   async function doExport() {
     if (!exportPwd) {
@@ -193,6 +199,7 @@ function BackupCard() {
         text: '✓ 백업 다운로드 완료. 비밀번호 잊지 마세요!',
       })
       setExportPwd('')
+      setLastBackupDays(0)
     } catch (e) {
       setMessage({ type: 'err', text: e instanceof Error ? e.message : '실패' })
     } finally {
@@ -233,6 +240,20 @@ function BackupCard() {
   return (
     <Card icon="🔒" title="백업 / 복원" subtitle="암호화된 파일로 데이터 보호">
       <div className="space-y-6">
+        {/* 마지막 백업 표시 */}
+        <div className="flex items-baseline justify-between text-xs">
+          <span className="text-[var(--color-ink-soft)]">마지막 백업</span>
+          {lastBackupDays === null ? (
+            <span className="text-[var(--color-accent)] italic font-display">아직 없음</span>
+          ) : lastBackupDays === 0 ? (
+            <span className="text-[var(--color-gold)]">오늘 ✓</span>
+          ) : (
+            <span className={lastBackupDays >= 30 ? 'text-[var(--color-accent)]' : 'text-[var(--color-ink-soft)]'}>
+              {lastBackupDays === 1 ? '어제' : `${lastBackupDays}일 전`}
+            </span>
+          )}
+        </div>
+
         {/* Export */}
         <div>
           <h3 className="text-xs uppercase tracking-wide text-[var(--color-ink-soft)] mb-3">
@@ -479,7 +500,7 @@ function KakaoImportCard() {
               <div className="text-xs uppercase tracking-wide text-[var(--color-ink-soft)] mb-2">
                 파일에서 추출된 내용 (처음 30줄)
               </div>
-              <pre className="text-xs font-mono whitespace-pre-wrap break-all max-h-64 overflow-auto bg-white border border-[var(--color-line)] rounded p-2">
+              <pre className="text-xs font-mono whitespace-pre-wrap break-all max-h-64 overflow-auto bg-[var(--color-surface)] border border-[var(--color-line)] rounded p-2">
                 {debugSample}
               </pre>
               <p className="text-xs text-[var(--color-ink-soft)] mt-2 leading-relaxed">

@@ -1,57 +1,311 @@
 @import "tailwindcss";
 
 @theme {
+  /* base — 기존 (PWA 아이콘 의존, 변경 금지) */
   --color-paper: #faf8f3;
   --color-ink: #1a1a1a;
   --color-ink-soft: #4a4a4a;
   --color-line: #e8e2d4;
   --color-accent: #8b3a3a;
 
+  /* extended — letterpress / antique journal 미감 */
+  --color-paper-warm: #f3ecd8;
+  --color-paper-shade: #ede5cf;
+  --color-ink-warm: #2a221c;
+  --color-gold: #b8924a;
+  --color-gold-soft: #d4b878;
+  --color-accent-soft: #b56b6b;
+
+  /* surface = 카드/입력 배경. light에서는 순백, dark에서는 paper-warm으로 swap */
+  --color-surface: #ffffff;
+  --color-surface-mute: rgb(255 255 255 / 0.5);
+
+  /* vignette / selection / scrollbar 컬러 — light/dark에서 swap */
+  --vignette-top: 255 247 222 / 0.5;
+  --vignette-bottom: 232 217 180 / 0.25;
+  --selection-bg: #d4b878;
+  --selection-fg: #2a221c;
+  --shadow-tint: 40 30 20;
+
   --font-display: "Newsreader", Georgia, serif;
   --font-body: "Pretendard Variable", -apple-system, sans-serif;
+
+  --shadow-soft: 0 1px 2px rgb(var(--shadow-tint) / 0.04), 0 2px 8px rgb(var(--shadow-tint) / 0.04);
+  --shadow-lift: 0 1px 2px rgb(var(--shadow-tint) / 0.06), 0 6px 16px rgb(var(--shadow-tint) / 0.06);
+  --shadow-press: inset 0 1px 0 rgb(255 255 255 / 0.6), 0 1px 2px rgb(var(--shadow-tint) / 0.05);
 }
+
+/* ───────────────────────── Dark mode ─────────────────────────
+   "검은 잉크 평면"이 아니라 오래된 가죽 표지의 안쪽 — 따뜻한 어둠.
+   토큰을 swap만 하면 모든 페이지가 자동으로 반전된다.
+   적용 우선순위:
+     [data-theme="dark"]     사용자 명시 dark
+     [data-theme="light"]    사용자 명시 light → 미디어쿼리 무시
+     prefers-color-scheme    사용자 무선택 + 시스템이 dark
+*/
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-paper: #1a1612;
+    --color-paper-warm: #221d17;
+    --color-paper-shade: #2c2620;
+    --color-ink: #f5efde;
+    --color-ink-warm: #ede5cf;
+    --color-ink-soft: #a89c84;
+    --color-line: #3a3128;
+    --color-accent: #d97070;
+    --color-accent-soft: #b56b6b;
+    --color-gold: #d4b878;
+    --color-gold-soft: #e8d4a0;
+
+    --color-surface: #221d17;
+    --color-surface-mute: rgb(34 29 23 / 0.5);
+
+    --vignette-top: 80 60 40 / 0.35;
+    --vignette-bottom: 50 35 25 / 0.45;
+    --selection-bg: #b8924a;
+    --selection-fg: #1a1612;
+    --shadow-tint: 0 0 0;
+
+    --shadow-soft: 0 1px 2px rgb(0 0 0 / 0.3), 0 2px 8px rgb(0 0 0 / 0.25);
+    --shadow-lift: 0 1px 2px rgb(0 0 0 / 0.35), 0 6px 16px rgb(0 0 0 / 0.4);
+    --shadow-press: inset 0 1px 0 rgb(255 255 255 / 0.04), 0 1px 2px rgb(0 0 0 / 0.3);
+  }
+}
+
+[data-theme="dark"] {
+  --color-paper: #1a1612;
+  --color-paper-warm: #221d17;
+  --color-paper-shade: #2c2620;
+  --color-ink: #f5efde;
+  --color-ink-warm: #ede5cf;
+  --color-ink-soft: #a89c84;
+  --color-line: #3a3128;
+  --color-accent: #d97070;
+  --color-accent-soft: #b56b6b;
+  --color-gold: #d4b878;
+  --color-gold-soft: #e8d4a0;
+
+  --color-surface: #221d17;
+  --color-surface-mute: rgb(34 29 23 / 0.5);
+
+  --vignette-top: 80 60 40 / 0.35;
+  --vignette-bottom: 50 35 25 / 0.45;
+  --selection-bg: #b8924a;
+  --selection-fg: #1a1612;
+  --shadow-tint: 0 0 0;
+
+  --shadow-soft: 0 1px 2px rgb(0 0 0 / 0.3), 0 2px 8px rgb(0 0 0 / 0.25);
+  --shadow-lift: 0 1px 2px rgb(0 0 0 / 0.35), 0 6px 16px rgb(0 0 0 / 0.4);
+  --shadow-press: inset 0 1px 0 rgb(255 255 255 / 0.04), 0 1px 2px rgb(0 0 0 / 0.3);
+}
+
+/* ───────────────────────── 전역 ───────────────────────── */
 
 html, body {
   background-color: var(--color-paper);
-  color: var(--color-ink);
+  color: var(--color-ink-warm);
   font-family: var(--font-body);
+  font-feature-settings: "kern", "liga", "calt", "ss01";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* 종이/가죽 위에 올려둔 듯한 미세한 따뜻함 */
+body {
+  background-image:
+    radial-gradient(ellipse 80% 60% at 50% 0%, rgb(var(--vignette-top)), transparent 70%),
+    radial-gradient(ellipse 60% 80% at 50% 120%, rgb(var(--vignette-bottom)), transparent 70%);
+  background-attachment: fixed;
 }
 
 h1, h2, h3 {
   font-family: var(--font-display);
+  letter-spacing: -0.01em;
 }
 
+::selection {
+  background: var(--selection-bg);
+  color: var(--selection-fg);
+}
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--color-line);
+  border-radius: 999px;
+  border: 2px solid var(--color-paper);
+}
+::-webkit-scrollbar-thumb:hover { background: var(--color-paper-shade); }
+
+/* ───────────────────────── 버튼 ───────────────────────── */
+
 @utility btn-primary {
-  background-color: var(--color-ink);
+  background: linear-gradient(180deg, var(--color-ink-warm), var(--color-ink));
   color: var(--color-paper);
-  padding: 0.5rem 1.25rem;
+  padding: 0.6rem 1.4rem;
   border-radius: 0.5rem;
-  transition: opacity 0.2s;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  box-shadow: var(--shadow-press), 0 1px 0 rgb(255 255 255 / 0.04) inset;
+  transition: transform 0.15s ease, box-shadow 0.2s ease, opacity 0.2s;
+  position: relative;
 }
 @utility btn-primary {
+  &:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-lift);
+  }
+  &:active:not(:disabled) { transform: translateY(0); }
+  &:focus-visible {
+    outline: 2px solid var(--color-gold);
+    outline-offset: 2px;
+  }
   &:disabled { opacity: 0.3; cursor: not-allowed; }
 }
 
 @utility btn-secondary {
   border: 1px solid var(--color-line);
+  background: rgb(255 255 255 / 0.5);
   color: var(--color-ink-soft);
-  padding: 0.5rem 1rem;
+  padding: 0.55rem 1.1rem;
   border-radius: 0.5rem;
-  transition: color 0.2s;
+  transition: color 0.2s, border-color 0.2s, background 0.2s;
 }
 @utility btn-secondary {
-  &:hover { color: var(--color-ink); }
+  &:hover {
+    color: var(--color-ink);
+    border-color: var(--color-ink-soft);
+    background: white;
+  }
+  &:focus-visible {
+    outline: 2px solid var(--color-gold);
+    outline-offset: 2px;
+  }
   &:disabled { opacity: 0.3; cursor: not-allowed; }
 }
+
+/* ───────────────────────── 입력 ───────────────────────── */
 
 @utility input {
   width: 100%;
   border: 1px solid var(--color-line);
-  background: white;
+  background: var(--color-surface);
+  color: var(--color-ink-warm);
   border-radius: 0.5rem;
-  padding: 0.5rem 0.75rem;
+  padding: 0.55rem 0.8rem;
   font-size: 0.875rem;
+  box-shadow: var(--shadow-press);
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
 @utility input {
-  &:focus { outline: none; border-color: var(--color-ink); }
+  &:focus {
+    outline: none;
+    border-color: var(--color-ink);
+    box-shadow: var(--shadow-press), 0 0 0 3px rgb(184 146 74 / 0.15);
+  }
+}
+
+/* ───────────────────────── 카드 ───────────────────────── */
+
+@utility card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: 0.85rem;
+  box-shadow: var(--shadow-soft);
+  position: relative;
+}
+
+/* 좌측에 가는 골드 라인 — 활판 인쇄의 마진 룰 */
+@utility card-ruled {
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-left: 2px solid var(--color-gold);
+  border-radius: 0.85rem;
+  box-shadow: var(--shadow-soft);
+}
+
+/* ───────────────────────── 타이포 강조 ───────────────────────── */
+
+/* 큰 첫 글자 — 안티크 저널 */
+@utility dropcap {
+  &::first-letter {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 600;
+    font-size: 3.2em;
+    line-height: 0.8;
+    float: left;
+    margin: 0.1em 0.12em 0 0;
+    color: var(--color-accent);
+  }
+}
+
+/* 작은 캡션 — 아주 살짝 트래킹된 우편엽서 라벨 */
+@utility eyebrow {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--color-ink-soft);
+  font-weight: 500;
+}
+
+/* 활판 인쇄 음각 숫자 — 카운터용 */
+@utility numeral {
+  font-family: var(--font-display);
+  font-feature-settings: "tnum", "lnum";
+  font-variant-numeric: tabular-nums lining-nums;
+  letter-spacing: -0.02em;
+}
+
+/* ───────────────────────── 장식 ───────────────────────── */
+
+/* 좌우 라인 + 가운데 마름모 ✦ */
+@utility divider-ornate {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: var(--color-gold);
+}
+@utility divider-ornate {
+  &::before, &::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--color-line), transparent);
+  }
+}
+
+/* ───────────────────────── 애니메이션 ───────────────────────── */
+
+@keyframes ink-fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@utility ink-in {
+  animation: ink-fade-in 0.4s ease both;
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+@utility shimmer {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgb(212 184 120 / 0.25) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2.4s ease-in-out infinite;
+}
+
+/* slide-in (다이제스트 화제 등장) */
+@keyframes slide-in-from-left {
+  from { opacity: 0; transform: translateX(-6px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@utility slide-in-soft {
+  animation: slide-in-from-left 0.35s ease both;
 }

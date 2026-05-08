@@ -75,11 +75,15 @@ export function Digest() {
 
   return (
     <div className="max-w-2xl mx-auto p-6 sm:p-8 space-y-6">
-      <header className="mb-2">
-        <h1 className="text-3xl mb-1">다이제스트</h1>
-        <p className="text-[var(--color-ink-soft)] italic text-sm">
+      <header className="ink-in">
+        <div className="text-[var(--color-gold)] text-sm mb-2">✦</div>
+        <h1 className="font-display italic text-4xl text-[var(--color-ink-warm)] leading-tight">
+          다이제스트
+        </h1>
+        <p className="text-[var(--color-ink-soft)] italic font-display mt-1.5 text-sm">
           긴 대화에서 핵심만 뽑아내기.
         </p>
+        <div className="mt-4 h-px bg-gradient-to-r from-[var(--color-gold)] via-[var(--color-line)] to-transparent" />
       </header>
 
       {!result ? (
@@ -135,26 +139,30 @@ function InputCard({
   onSubmit: () => void
 }) {
   return (
-    <section className="border border-[var(--color-line)] bg-white rounded-xl p-6 shadow-sm space-y-5">
+    <section className="card-ruled p-6 space-y-5">
       {/* 입력 모드 토글 */}
-      <div className="flex border border-[var(--color-line)] rounded-lg p-1 text-sm">
+      <div
+        className="flex border border-[var(--color-line)] rounded-lg p-1 text-sm bg-[var(--color-paper-warm)]/40"
+      >
         <button
           onClick={() => setMode('paste')}
-          className={`flex-1 py-2 rounded transition-colors ${
+          className={`flex-1 py-2 rounded-md transition-all ${
             mode === 'paste'
-              ? 'bg-[var(--color-ink)] text-[var(--color-paper)]'
+              ? 'bg-[var(--color-surface)] text-[var(--color-ink-warm)] font-medium'
               : 'text-[var(--color-ink-soft)] hover:text-[var(--color-ink)]'
           }`}
+          style={mode === 'paste' ? { boxShadow: 'var(--shadow-soft)' } : undefined}
         >
           텍스트 붙여넣기
         </button>
         <button
           onClick={() => setMode('file')}
-          className={`flex-1 py-2 rounded transition-colors ${
+          className={`flex-1 py-2 rounded-md transition-all ${
             mode === 'file'
-              ? 'bg-[var(--color-ink)] text-[var(--color-paper)]'
+              ? 'bg-[var(--color-surface)] text-[var(--color-ink-warm)] font-medium'
               : 'text-[var(--color-ink-soft)] hover:text-[var(--color-ink)]'
           }`}
+          style={mode === 'file' ? { boxShadow: 'var(--shadow-soft)' } : undefined}
         >
           파일 업로드
         </button>
@@ -171,7 +179,7 @@ function InputCard({
             onChange={(e) => setText(e.target.value)}
             placeholder="카카오톡 대화 내용을 여기에 붙여넣으세요..."
             rows={10}
-            className="w-full border border-[var(--color-line)] bg-white rounded-lg p-3 text-sm font-mono leading-relaxed focus:outline-none focus:border-[var(--color-ink)] resize-y"
+            className="w-full border border-[var(--color-line)] bg-[var(--color-surface)] text-[var(--color-ink-warm)] rounded-lg p-3 text-sm font-mono leading-relaxed focus:outline-none focus:border-[var(--color-ink-warm)] resize-y"
             disabled={loading}
           />
           <p className="text-xs text-[var(--color-ink-soft)] mt-1">
@@ -225,7 +233,7 @@ function InputCard({
       </button>
 
       {error && (
-        <div className="text-xs px-3 py-2 rounded text-[var(--color-accent)] bg-[var(--color-paper)]">
+        <div className="text-xs px-3 py-2 rounded text-[var(--color-accent)] bg-[var(--color-paper-warm)] border border-[var(--color-line)]">
           {error}
         </div>
       )}

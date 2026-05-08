@@ -51,15 +51,27 @@ export async function extractFromMessage(message: string): Promise<ExtractResult
 function buildExtractionPrompt(people: Person[]): string {
   const peopleList = people.map((p) => `- ${p.name} (${p.relationship})`).join('\n')
 
+  // 같은 관계가 여러 명이면 관계어 매칭이 모호해지므로 LLM에게 미리 알림
+  const relCounts = people.reduce<Record<string, number>>((acc, p) => {
+    acc[p.relationship] = (acc[p.relationship] ?? 0) + 1
+    return acc
+  }, {})
+  const ambiguousRels = Object.entries(relCounts).filter(([, n]) => n > 1).map(([r]) => r)
+
+  const ambiguityNote = ambiguousRels.length > 0
+    ? `\n\n[모호 회피] ${ambiguousRels.join(', ')} 관계가 여러 명 등록됨. 사용자가 "엄마/누나/형" 같은 관계어를 쓰면 누구인지 명확하지 않으므로 person_name은 반드시 위 목록의 정확한 이름으로만.`
+    : ''
+
   return `너는 사용자의 일기/대화에서 사람에 대한 사실을 추출하는 어시스턴트야.
 
 [등록된 사람들]
-${peopleList}
+${peopleList}${ambiguityNote}
 
 [추출 규칙]
 1. person_name은 위 목록의 이름과 정확히 일치해야 함
-   - "여친"/"여자친구"/"애인" → relationship이 partner인 사람
-   - "엄마"/"아빠"/"형"/"누나" 등 → relationship이 family인 사람
+   - "여친"/"여자친구"/"애인" → relationship이 partner인 사람 (해당 관계 1명일 때만)
+   - "엄마"/"아빠"/"형"/"누나" 등 → relationship이 family인 사람 (해당 관계 1명일 때만)
+   - 같은 관계가 여러 명이면 위 [모호 회피] 따라 정확한 이름만 사용
    - 위 목록에 없는 사람 언급은 무시
 2. key는 짧은 명사구 (1~30자). 일관된 표기 사용:
    - 영문 약어는 대문자: MBTI, IT

@@ -28,16 +28,17 @@ export function FileDropZone({ accept, file, onFile, hint, disabled }: Props) {
   }
 
   const stateClasses = file
-    ? 'border-[var(--color-ink)] bg-white'
+    ? 'border-[var(--color-gold)] bg-[var(--color-surface)]'
     : dragOver
-      ? 'border-[var(--color-ink)] bg-white'
-      : 'border-[var(--color-line)] hover:border-[var(--color-ink-soft)] bg-white/50'
+      ? 'border-[var(--color-accent)] bg-[var(--color-paper-warm)]'
+      : 'border-[var(--color-line)] hover:border-[var(--color-gold)] bg-[var(--color-surface-mute)]'
 
   return (
     <label
-      className={`block border-2 border-dashed rounded-lg p-6 cursor-pointer transition-colors ${stateClasses} ${
+      className={`block border-2 border-dashed rounded-xl p-6 cursor-pointer transition-all ${stateClasses} ${
         disabled ? 'opacity-50 cursor-not-allowed' : ''
       }`}
+      style={file || dragOver ? { boxShadow: 'var(--shadow-soft)' } : undefined}
       onDragOver={(e) => {
         e.preventDefault()
         if (!disabled) setDragOver(true)
@@ -75,12 +76,14 @@ export function FileDropZone({ accept, file, onFile, hint, disabled }: Props) {
         </div>
       ) : (
         <div className="text-center space-y-2">
-          <UploadIcon />
-          <div className="text-sm">
+          <div className={dragOver ? 'text-[var(--color-accent)]' : 'text-[var(--color-ink-soft)]'}>
+            <UploadIcon />
+          </div>
+          <div className="text-sm font-display italic text-[var(--color-ink-warm)]">
             {hint ?? '파일 선택 또는 끌어다 놓기'}
           </div>
-          <div className="text-xs text-[var(--color-ink-soft)]">
-            {accept.replace(/\./g, '').replace(/,/g, ' / ').toUpperCase()}
+          <div className="text-[10px] uppercase tracking-[0.16em] text-[var(--color-ink-soft)]">
+            {accept.replace(/\./g, '').replace(/,/g, ' · ').toUpperCase()}
           </div>
         </div>
       )}
