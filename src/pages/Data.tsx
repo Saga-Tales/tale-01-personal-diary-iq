@@ -8,6 +8,7 @@ import {
 } from '@/lib/ical'
 import { exportBackup, restoreBackup, type RestoreResult } from '@/lib/backup'
 import { daysSinceBackup } from '@/lib/diary-state'
+import { evaluatePassword, type StrengthResult } from '@/lib/password-strength'
 import {
   parseKakaoExport,
   groupByDay,
@@ -83,6 +84,38 @@ function StatusMessage({
     info: 'text-[var(--color-ink-soft)] bg-[var(--color-paper)]',
   }
   return <div className={`text-xs px-3 py-2 rounded ${colors[type]}`}>{text}</div>
+}
+
+function PasswordStrengthMeter({ strength }: { strength: StrengthResult }) {
+  // 4단계 (0~3) → 25% / 50% / 75% / 100% 너비
+  const widthPct = (strength.level + 1) * 25
+  // 색상: 0-1은 accent (위험), 2-3은 gold (안전 영역)
+  // 디자인 토큰 안에서 머무르기 — 새 색상 안 만듦
+  const barColor = strength.level <= 1 ? 'var(--color-accent)' : 'var(--color-gold)'
+  const labelColor =
+    strength.level === 0 ? 'text-[var(--color-accent)]'
+    : strength.level === 1 ? 'text-[var(--color-accent-soft)]'
+    : strength.level === 2 ? 'text-[var(--color-ink-soft)]'
+    : 'text-[var(--color-gold)]'
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center gap-2">
+        <div className="flex-1 h-1 bg-[var(--color-line)] rounded-full overflow-hidden">
+          <div
+            className="h-full transition-all duration-300"
+            style={{ width: `${widthPct}%`, backgroundColor: barColor }}
+          />
+        </div>
+        <span className={`text-[10px] uppercase tracking-[0.14em] tabular-nums ${labelColor}`}>
+          {strength.label}
+        </span>
+      </div>
+      <p className="text-[11px] text-[var(--color-ink-soft)] leading-relaxed">
+        {strength.hint}
+      </p>
+    </div>
+  )
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -179,6 +212,8 @@ function BackupCard() {
   )
   const [lastBackupDays, setLastBackupDays] = useState<number | null>(daysSinceBackup())
 
+  const strength: StrengthResult = evaluatePassword(exportPwd)
+
   async function doExport() {
     if (!exportPwd) {
       setMessage({ type: 'err', text: '비밀번호를 입력하세요.' })
@@ -187,6 +222,13 @@ function BackupCard() {
     if (exportPwd.length < 8) {
       setMessage({ type: 'err', text: '비밀번호는 8자 이상이어야 해요.' })
       return
+    }
+    // 약한 비밀번호는 추가 confirm — 잊으면 영영 복구 불가
+    if (strength.level === 0) {
+      const ok = confirm(
+        `⚠️ 비밀번호가 약해요 (${strength.label}).\n${strength.hint}\n\n그래도 이 비밀번호로 백업할까요?`,
+      )
+      if (!ok) return
     }
     setBusy(true)
     setMessage(null)
@@ -268,6 +310,7 @@ function BackupCard() {
               className="input"
               disabled={busy}
             />
+            {exportPwd.length > 0 && <PasswordStrengthMeter strength={strength} />}
             <button
               onClick={doExport}
               disabled={busy || !exportPwd}
