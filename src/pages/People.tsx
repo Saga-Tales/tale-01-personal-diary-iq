@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { db, type Person, type Fact } from '@/db/schema'
+import { logActivityEvent } from '@/lib/diary-state'
 
 const RELATIONSHIP_LABELS: Record<Person['relationship'], string> = {
   partner: '연인',
@@ -76,6 +77,8 @@ export function People() {
 
   async function removeFact(id: number) {
     await db.facts.delete(id)
+    // dogfooding precision metric — 사용자가 직접 ✕로 지운 fact는 false-positive 인디케이터
+    logActivityEvent('fact-deleted')
     refresh()
   }
 

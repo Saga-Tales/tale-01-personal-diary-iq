@@ -1,6 +1,7 @@
 import { db, type Person } from '@/db/schema'
 import { callJson } from '@/lib/anthropic'
 import { validateAndResolve, type RawFact, type ValidatedFact } from '@/lib/validator'
+import { logActivityEvent } from '@/lib/diary-state'
 
 const MIN_MESSAGE_LENGTH = 10
 
@@ -39,6 +40,7 @@ export async function extractFromMessage(message: string): Promise<ExtractResult
     const action = await upsertFact(fact)
     if (action === 'inserted') inserted++
     else updated++
+    logActivityEvent('fact-changed')
   }
 
   if (rejected.length > 0) {

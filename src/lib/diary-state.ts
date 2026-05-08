@@ -1,6 +1,8 @@
 import { db } from '@/db/schema'
 
 const LAST_BACKUP_KEY = 'last-backup-at'
+const ACTIVITY_KEY = 'activity-events'
+const ACTIVITY_RETENTION_DAYS = 60   // 30일 grid + 여유분, 더 보관해도 무의미
 
 /* ───────────────────────── streak / 마지막 기록 ───────────────────────── */
 
@@ -54,6 +56,114 @@ export async function computeRhythm(now: Date = new Date()): Promise<DiaryRhythm
   const daysSinceLast = Math.round((todayStart - lastDayStart) / (24 * 60 * 60 * 1000))
 
   return { streakDays, lastEpisodeAt, daysSinceLast }
+}
+
+/* ───────────────────────── 30일 activity calendar ─────────────────────────
+   날짜별 episode 수 — Home의 streak grid에 쓰임. 잔디(GitHub) 풍 시각화.
+*/
+
+export interface DayActivity {
+  date: string         // 'YYYY-MM-DD' (로컬 시간 기준)
+  count: number        // 그 날의 episode 수
+}
+
+function dayKeyISO(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+export async function getActivityCalendar(lookbackDays = 30, now: Date = new Date()): Promise<DayActivity[]> {
+  const episodes = await db.episodes.toArray()
+
+  const byDay = new Map<string, number>()
+  for (const e of episodes) {
+    const key = dayKeyISO(new Date(e.createdAt))
+    byDay.set(key, (byDay.get(key) ?? 0) + 1)
+  }
+
+  const result: DayActivity[] = []
+  const cursor = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  cursor.setDate(cursor.getDate() - (lookbackDays - 1))
+  for (let i = 0; i < lookbackDays; i++) {
+    const key = dayKeyISO(cursor)
+    result.push({ date: key, count: byDay.get(key) ?? 0 })
+    cursor.setDate(cursor.getDate() + 1)
+  }
+  return result
+}
+
+/* ───────────────────────── 주간 활동 카운터 ─────────────────────────
+   "이번 주" = 이번 월요일 00:00 ~ 다음 월요일 00:00 (로컬). 한국식.
+   - 채팅 횟수: db.messages 직접 쿼리 (자동, 변조 불가)
+   - fact 변경 / 삭제: localStorage 이벤트 로그 (사용자 행동 추적)
+     이건 외부 전송 0건 — CLAUDE.md 가치 보존.
+*/
+
+export interface WeekActivity {
+  weekStartTs: number
+  chatCount: number      // 사용자가 보낸 메시지 수
+  factChanges: number    // fact 추가 + 갱신
+  factDeletions: number  // fact ✕로 직접 지운 수 (precision metric)
+}
+
+function startOfWeek(now: Date): Date {
+  const d = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const day = d.getDay()  // 0=Sun ~ 6=Sat
+  const offset = day === 0 ? 6 : day - 1
+  d.setDate(d.getDate() - offset)
+  return d
+}
+
+export async function computeWeekActivity(now: Date = new Date()): Promise<WeekActivity> {
+  const weekStartTs = startOfWeek(now).getTime()
+  const events = loadActivityEvents()
+
+  const chatCount = await db.messages
+    .where('createdAt')
+    .above(weekStartTs)
+    .filter((m) => m.role === 'user')
+    .count()
+
+  const factChanges = events.filter((e) => e.type === 'fact-changed' && e.ts >= weekStartTs).length
+  const factDeletions = events.filter((e) => e.type === 'fact-deleted' && e.ts >= weekStartTs).length
+
+  return { weekStartTs, chatCount, factChanges, factDeletions }
+}
+
+/* ───────────────────────── activity event log (localStorage) ───────────────────────── */
+
+export type ActivityEventType = 'fact-changed' | 'fact-deleted'
+
+interface ActivityEvent {
+  type: ActivityEventType
+  ts: number
+}
+
+function loadActivityEvents(): ActivityEvent[] {
+  try {
+    const v = localStorage.getItem(ACTIVITY_KEY)
+    if (!v) return []
+    const parsed = JSON.parse(v)
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+/**
+ * fact-changed / fact-deleted 같은 사용자 행동 이벤트를 localStorage에 기록.
+ * 외부 전송 NO. CLAUDE.md "분석 / 트래킹 도구 추가하지 마라" 원칙 안에서
+ * 로컬 자기-피드백 metric 인프라.
+ */
+export function logActivityEvent(type: ActivityEventType): void {
+  try {
+    const events = loadActivityEvents()
+    const cutoff = Date.now() - ACTIVITY_RETENTION_DAYS * 24 * 60 * 60 * 1000
+    const fresh = events.filter((e) => e.ts >= cutoff)
+    fresh.push({ type, ts: Date.now() })
+    localStorage.setItem(ACTIVITY_KEY, JSON.stringify(fresh))
+  } catch {
+    // localStorage 차단 환경 — silent OK
+  }
 }
 
 /* ───────────────────────── 마지막 백업 ───────────────────────── */
@@ -127,6 +237,7 @@ export interface HeroGreeting {
   prompt: string          // 큰 헤드라인
   highlight: string       // prompt 끝에서 크림슨 강조될 부분 (없으면 빈 문자열)
   ornament?: string       // streak 아이콘 (있을 때만)
+  ctaLabel: string        // 기록 버튼 라벨 — 오늘 이미 적었으면 '이어서 적기'
 }
 
 function getTimePrompt(hour: number): { prompt: string; highlight: string } {
@@ -145,12 +256,16 @@ export function buildHeroGreeting(rhythm: DiaryRhythm, now: Date = new Date()): 
 
   const time = getTimePrompt(now.getHours())
 
+  // CTA 라벨은 오늘 이미 기록했는지에 따라 차별화 — 사용자에게 '이미 적었음' 인식 신호
+  const ctaLabel = rhythm.daysSinceLast === 0 ? '이어서 적기' : '기록하기'
+
   // 7일+ 만에 다시 → 환영
   if (rhythm.daysSinceLast !== null && rhythm.daysSinceLast >= 7) {
     return {
       eyebrow: `${rhythm.daysSinceLast}일 만이야`,
       prompt: '그동안 어떻게 ',
       highlight: '지냈어?',
+      ctaLabel,
     }
   }
 
@@ -161,6 +276,7 @@ export function buildHeroGreeting(rhythm: DiaryRhythm, now: Date = new Date()): 
       prompt: time.prompt,
       highlight: time.highlight,
       ornament: '✦',
+      ctaLabel,
     }
   }
 
@@ -170,6 +286,7 @@ export function buildHeroGreeting(rhythm: DiaryRhythm, now: Date = new Date()): 
       eyebrow: `${rhythm.streakDays}일째 함께`,
       prompt: time.prompt,
       highlight: time.highlight,
+      ctaLabel,
     }
   }
 
@@ -178,5 +295,6 @@ export function buildHeroGreeting(rhythm: DiaryRhythm, now: Date = new Date()): 
     eyebrow: dateStr,
     prompt: time.prompt,
     highlight: time.highlight,
+    ctaLabel,
   }
 }
