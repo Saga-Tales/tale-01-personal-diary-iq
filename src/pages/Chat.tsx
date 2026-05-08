@@ -4,11 +4,13 @@ import { callStreaming } from '@/lib/anthropic'
 import { buildSystemPrompt } from '@/lib/context'
 import { extractFromMessage } from '@/lib/extractor'
 import { preload, setProgressCallback, isEmbedderReady } from '@/lib/embedder'
-import { saveEpisode } from '@/lib/retriever'
+import { saveEpisode, formatEpisodeContent } from '@/lib/retriever'
 
 interface UIMessage {
+  id?: number
   role: 'user' | 'assistant'
   content: string
+  createdAt?: number
 }
 
 export function Chat() {
@@ -21,7 +23,14 @@ export function Chat() {
 
   useEffect(() => {
     db.messages.orderBy('createdAt').toArray().then((msgs) => {
-      setMessages(msgs.map((m) => ({ role: m.role, content: m.content })))
+      setMessages(
+        msgs.map((m) => ({
+          id: m.id,
+          role: m.role,
+          content: m.content,
+          createdAt: m.createdAt,
+        })),
+      )
     })
   }, [])
 
@@ -69,11 +78,19 @@ export function Chat() {
     setLoading(true)
 
     try {
-      await db.messages.add({
+      const userCreatedAt = Date.now()
+      const userId = await db.messages.add({
         role: 'user',
         content: userMsg,
-        createdAt: Date.now(),
+        createdAt: userCreatedAt,
       })
+      // user placeholder에 id 반영 — 삭제 가능하도록
+      setMessages((m) => {
+        const updated = [...m]
+        updated[updated.length - 2] = { id: userId, role: 'user', content: userMsg, createdAt: userCreatedAt }
+        return updated
+      })
+
       const system = await buildSystemPrompt(userMsg)
 
       // streaming — 매 chunk마다 마지막 메시지 (assistant placeholder) 갱신
@@ -82,16 +99,22 @@ export function Chat() {
         reply = accumulated
         setMessages((m) => {
           const updated = [...m]
-          updated[updated.length - 1] = { role: 'assistant', content: accumulated }
+          updated[updated.length - 1] = { ...updated[updated.length - 1], role: 'assistant', content: accumulated }
           return updated
         })
       })
 
       // 스트림 종료 후 DB 저장 (token마다 쓰지 않음)
-      await db.messages.add({
+      const assistantCreatedAt = Date.now()
+      const assistantId = await db.messages.add({
         role: 'assistant',
         content: reply,
-        createdAt: Date.now(),
+        createdAt: assistantCreatedAt,
+      })
+      setMessages((m) => {
+        const updated = [...m]
+        updated[updated.length - 1] = { id: assistantId, role: 'assistant', content: reply, createdAt: assistantCreatedAt }
+        return updated
       })
 
       // 백그라운드 작업들
@@ -128,6 +151,65 @@ export function Chat() {
       e.preventDefault()
       send()
     }
+  }
+
+  // turn 삭제 — 클릭한 메시지의 user+assistant 짝과 매칭되는 episode(임베딩 포함)까지 같이 정리.
+  // turn = 인접한 user/assistant 한 쌍. 사용자가 어느 쪽에 있는 ✕ 누르든 짝 전체 사라짐.
+  async function deleteTurn(index: number) {
+    const m = messages[index]
+    if (!m?.id) return // streaming 중인 메시지는 아직 id가 없음 — 삭제 비활성
+
+    // 짝 찾기 — 클릭된 게 user면 다음 assistant, assistant면 이전 user
+    let userIdx = -1
+    let asstIdx = -1
+    if (m.role === 'user') {
+      userIdx = index
+      asstIdx = messages[index + 1]?.role === 'assistant' ? index + 1 : -1
+    } else {
+      asstIdx = index
+      userIdx = messages[index - 1]?.role === 'user' ? index - 1 : -1
+    }
+
+    const userMsg = userIdx >= 0 ? messages[userIdx] : null
+    const asstMsg = asstIdx >= 0 ? messages[asstIdx] : null
+
+    // 둘 다 있을 때만 episode 매칭 시도. 한쪽만 있으면 message만 지움.
+    const willDeleteEpisode = userMsg && asstMsg
+    const confirmMsg = willDeleteEpisode
+      ? '이 대화 turn을 영구 삭제할까요?\n\n⚠️ 메시지 + 임베딩(일화)이 함께 사라져서 이 대화는 회상되지 않아요.\n추출된 fact는 영향 없음.'
+      : '이 메시지를 영구 삭제할까요?'
+    if (!confirm(confirmMsg)) return
+
+    // messages 테이블 삭제
+    const idsToDelete = [userMsg?.id, asstMsg?.id].filter((x): x is number => typeof x === 'number')
+    if (idsToDelete.length > 0) {
+      await db.messages.bulkDelete(idsToDelete)
+    }
+
+    // episode 삭제 — content 정확히 매칭. 같은 사용자/응답 조합이 다른 시점에 또 있을 수 있어
+    // (드물지만 가능) createdAt 윈도우로 추가 좁힘. assistantCreatedAt ± 30s.
+    if (willDeleteEpisode && userMsg && asstMsg) {
+      const expectedContent = formatEpisodeContent(userMsg.content, asstMsg.content)
+      const windowMs = 30_000
+      const startAt = (asstMsg.createdAt ?? 0) - windowMs
+      const endAt = (asstMsg.createdAt ?? 0) + windowMs
+      const candidates = await db.episodes
+        .where('createdAt')
+        .between(startAt, endAt, true, true)
+        .toArray()
+      const matchIds = candidates
+        .filter((e) => e.content === expectedContent)
+        .map((e) => e.id!)
+        .filter((x) => typeof x === 'number')
+      if (matchIds.length > 0) {
+        await db.episodes.bulkDelete(matchIds)
+      }
+    }
+
+    // UI 갱신 — 삭제된 인덱스 제거
+    const removeIndices = new Set([userIdx, asstIdx].filter((x) => x >= 0))
+    setMessages((current) => current.filter((_, i) => !removeIndices.has(i)))
+    setToast(willDeleteEpisode ? '🗑️ turn 삭제됨 (일화도 정리)' : '🗑️ 메시지 삭제됨')
   }
 
   return (
@@ -170,11 +252,23 @@ export function Chat() {
           const isLast = i === messages.length - 1
           const isStreaming = loading && isLast && m.role === 'assistant'
           const showDots = isStreaming && !m.content
+          const canDelete = !!m.id && !isStreaming && !loading
           return (
             <div
-              key={i}
-              className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'} ink-in`}
+              key={m.id ?? `tmp-${i}`}
+              className={`group flex items-start gap-2 ${m.role === 'user' ? 'justify-end' : 'justify-start'} ink-in`}
             >
+              {/* assistant 쪽 삭제 버튼 (왼쪽 - assistant 버블 왼쪽에 위치) */}
+              {m.role === 'assistant' && canDelete && (
+                <button
+                  onClick={() => deleteTurn(i)}
+                  className="opacity-0 group-hover:opacity-100 transition-opacity text-[var(--color-ink-soft)] hover:text-[var(--color-accent)] text-xs mt-2.5 px-1"
+                  aria-label="이 turn 삭제"
+                  title="이 turn 삭제 (메시지 + 일화 동기)"
+                >
+                  ✕
+                </button>
+              )}
               <div
                 className={`max-w-[85%] rounded-2xl px-4 py-2.5 leading-relaxed whitespace-pre-wrap ${
                   m.role === 'user'
@@ -203,6 +297,17 @@ export function Chat() {
                   </>
                 )}
               </div>
+              {/* user 쪽 삭제 버튼 (오른쪽 - user 버블 오른쪽에 위치) */}
+              {m.role === 'user' && canDelete && (
+                <button
+                  onClick={() => deleteTurn(i)}
+                  className="opacity-0 group-hover:opacity-100 transition-opacity text-[var(--color-ink-soft)] hover:text-[var(--color-accent)] text-xs mt-2.5 px-1"
+                  aria-label="이 turn 삭제"
+                  title="이 turn 삭제 (메시지 + 일화 동기)"
+                >
+                  ✕
+                </button>
+              )}
             </div>
           )
         })}

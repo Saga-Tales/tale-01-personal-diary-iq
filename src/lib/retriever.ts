@@ -33,11 +33,19 @@ export async function retrieveRelevant(query: string): Promise<RetrievedEpisode[
 }
 
 /**
+ * Episode content 포맷 — saveEpisode와 turn 삭제(content 매칭) 양쪽에서 공유.
+ * 이 형식이 변경되면 기존 episode 검색이 깨지니 신중히.
+ */
+export function formatEpisodeContent(userMsg: string, assistantMsg: string): string {
+  return `[사용자] ${userMsg}\n[응답] ${assistantMsg}`
+}
+
+/**
  * 채팅 turn 하나(user + assistant)를 에피소드로 저장 (with embedding).
  * fire-and-forget으로 호출 — 채팅 UX를 막지 않게.
  */
 export async function saveEpisode(userMsg: string, assistantMsg: string): Promise<void> {
-  const content = `[사용자] ${userMsg}\n[응답] ${assistantMsg}`
+  const content = formatEpisodeContent(userMsg, assistantMsg)
 
   try {
     const embedding = await embed(userMsg, 'passage')
